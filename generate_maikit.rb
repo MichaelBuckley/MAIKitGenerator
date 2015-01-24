@@ -544,6 +544,8 @@ end
 
 FileUtils.mkdir_p(output_path)
 
+umbrella_header_file = File.open(File.join(output_path, "MAIKit.h"), "wb")
+
 ios_class_names.each do | ios_class_name |
     mac_class_name = mac_class_names_by_ios_class_name[ios_class_name]
     mai_class_name = mai_class_names_by_ios_class_name[ios_class_name]
@@ -678,5 +680,7 @@ ios_class_names.each do | ios_class_name |
         
         header_file.write("@end\n")
         implementation_file.write("@end\n")
+
+        umbrella_header_file.write("#import \"#{mai_class_name}.h\n")
     end
 end
