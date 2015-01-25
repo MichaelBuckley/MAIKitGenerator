@@ -494,8 +494,8 @@ def write_initializer(file, name, args, prototype, ios_class_name, mac_class_nam
     file.write("    return (#{mai_class_name}*) [(#{ios_class_name}*) self#{method_call}];\n")
     file.write("#else\n")
     file.write("    return (#{mai_class_name}*) [(#{mac_class_name}*) self#{method_call}];\n")
+    file.write("#endif\n")
     file.write("\}\n\n")
-    file.write("#endif\n\n")
 end
 
 parse_headers(ios_classes, ios_foundation_header_path)
@@ -546,6 +546,12 @@ FileUtils.mkdir_p(output_path)
 
 umbrella_header_file = File.open(File.join(output_path, "MAIKit.h"), "wb")
 
+umbrella_header_file.write("//! Project version number for MAIKit.\n")
+umbrella_header_file.write("FOUNDATION_EXPORT double MAIKitVersionNumber;\n\n")
+
+umbrella_header_file.write("//! Project version string for MAIKit.\n")
+umbrella_header_file.write("FOUNDATION_EXPORT const unsigned char MAIKitVersionString[];\n\n")
+
 ios_class_names.sort.each do | ios_class_name |
     mac_class_name = mac_class_names_by_ios_class_name[ios_class_name]
     mai_class_name = mai_class_names_by_ios_class_name[ios_class_name]
@@ -594,6 +600,7 @@ ios_class_names.sort.each do | ios_class_name |
         header_file         = File.open(header_filename,         "wb")
         implementation_file = File.open(implementation_filename, "wb")
 
+        header_file.write("#import <TargetConditionals.h>\n")
         header_file.write("#if TARGET_OS_IPHONE\n")
         header_file.write("@import UIKit;\n")
         header_file.write("#else\n")
