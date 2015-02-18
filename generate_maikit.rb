@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby -w
 
 require 'fileutils'
+require 'set'
 
 xcode_path = '/Applications/Xcode.app'
 
@@ -19,6 +20,22 @@ output_path = 'output'
 ios_classes = {}
 mac_classes = {}
 mai_classes = {}
+
+ios_protocols = {}
+mac_protocols = {}
+mai_protocols = {}
+
+mac_foundation_protocols = {}
+ios_foundation_protocols = {}
+mai_foundation_protocols = {}
+
+ios_enums = {}
+mac_enums = {}
+mai_enums = {}
+
+ios_options = {}
+mac_options = {}
+mai_options = {}
 
 class String
     def to_setter
@@ -43,7 +60,7 @@ def compare_types(type1, type2)
     return type1 <=> type2
 end
 
-def mai_class_name(class_name, mai_classes)
+def mai_class_name(class_name, mai_classes, mai_protocols)
     mai_class = class_name
     
     if class_name == 'NSRect'
@@ -52,38 +69,102 @@ def mai_class_name(class_name, mai_classes)
         return 'CGPoint'
     elsif class_name == 'NSSize'
         return 'CGSize'
-    elsif class_name.start_with?("NS") or class_name.start_with?("UI")
-        replaced_name = "MAI" + class_name[2...-1]
-        
-        if mai_classes.include?(replaced_name)
-            mai_class = replaced_name + '*'
+    else
+        if class_name.start_with?("NS") or class_name.start_with?("UI")
+            replaced_name = "MAI" + class_name[2...-1]
+            
+            mai_classes.each do | mai_class_name, ignored |
+                if replaced_name.split(' ').include? mai_class_name
+                    replaced_name = replaced_name + '*'
+                    mai_class = replaced_name
+                    break
+                end
+            end
         end
+        
+        mai_protocols.each do | mai_protocol_name, mai_protocol |
+            ns_protocol_name = "NS" + mai_protocol_name[3...mai_protocol_name.length]
+            ui_protocol_name = "UI" + mai_protocol_name[3...mai_protocol_name.length]
+            
+            mai_class.gsub!(ns_protocol_name, mai_protocol_name)
+            mai_class.gsub!(ui_protocol_name, mai_protocol_name)
+        end
+        
     end
     
     return mai_class
 end
 
-class AppleClass
+class AppleInterface
     attr_reader :name
-    attr_reader :superclass
     attr_reader :methods
     attr_reader :properties
+    attr_reader :protocols
 
-    def initialize(name, superclass)
-        @name       = name
-        @superclass = superclass
-        @methods    = {}
-        @properties = {}
+    def initialize(name)
+        @name        = name
+        @methods     = {}
+        @properties  = {}
+        @protocols = []
     end
     
-    def update_types(mai_classes)
+    def update_types(mai_classes, mai_protocols)
         self.methods.each do | method_name, method|
-            method.update_types(mai_classes)
+            method.update_types(mai_classes, mai_protocols)
         end
         
         self.properties.each do | property_name, property |
-            property.update_types(mai_classes)
+            property.update_types(mai_classes, mai_protocols)
         end
+        
+        replaced_protocols = []
+        self.protocols.each do | protocol |
+            mai_protocol_name = 'MAI' + protocol[2...protocol.length]
+            if mai_protocols.include?(mai_protocol_name)
+                replaced_protocols.push(mai_protocol_name)
+            else
+                replaced_protocols.push(protocol)
+            end
+        end
+        
+        @protocols = replaced_protocols
+    end
+    
+    def add_method(method)
+        self.methods[method.name] = method
+    end
+    
+    def get_method(name)
+        return self.methods[name]
+    end
+    
+    def add_property(property)
+        self.properties[property.name] = property
+    end
+    
+    def get_property(name)
+        return self.properties[name]
+    end
+    
+    def add_protocol(protocol)
+        self.protocols.push(protocol)
+    end
+    
+    def contains_protocol(protocol)
+        if self.protocols.include?(protocol)
+            return true
+        end
+        
+        return false
+    end
+end
+
+class AppleClass < AppleInterface
+    attr_reader :superclass
+
+    def initialize(name, superclass)
+        @superclass = superclass
+        super(name)
     end
     
     def all_methods(classes)
@@ -101,14 +182,6 @@ class AppleClass
         return methods
     end
     
-    def add_method(method)
-        self.methods[method.name] = method
-    end
-    
-    def get_method(name)
-        return self.methods[name]
-    end
-    
     def all_properties(classes)
         properties = {}
         properties = properties.merge(self.properties)
@@ -123,15 +196,6 @@ class AppleClass
         
         return properties
     end
-    
-    def add_property(property)
-        self.properties[property.name] = property
-    end
-    
-    def get_property(name)
-        return self.properties[name]
-    end
-    
 end
 
 class AppleMethod
@@ -209,9 +273,23 @@ class AppleMethod
         return str_value
     end
     
-    def update_types(mai_classes)
-        @return_type = mai_class_name(@return_type, mai_classes)
-        @argument_types = @argument_types.map { | argument_type | mai_class_name(argument_type, mai_classes) }
+    def update_types(mai_classes, mai_protocols)
+        @return_type = mai_class_name(@return_type, mai_classes, mai_protocols)
+        @argument_types = @argument_types.map { | argument_type | mai_class_name(argument_type, mai_classes, mai_protocols) }
+    end
+    
+    def contains_protocol(protocol)
+        if self.type.include?('<' + protocol + '>')
+            return true
+        end
+        
+        self.argument_types.each do | argument_type |
+            if argument_type.include?('<' + protocol + '>')
+                return true
+            end
+        end
+        
+        return false
     end
     
     def <=>(other)
@@ -273,13 +351,15 @@ class AppleProperty
         memory_semantics = ASSIGN
         atomicity        = NONATOMIC
         access           = READWRITE
+        
+        line.gsub!(/\/\*.+\*\//, '')
     
-        match = /@property\s*\(([^)]*)\)*\s*([\w\s\<\>]+\s*\**)\s+(\w+)/.match(line)
+        match = /@property\s*\(([^)]*)\)*\s*(\w+(\s*\<.+\>\s*)*\s*\*{0,1})\s+(\w+)/.match(line)
         
         if match != nil
             attributes = match[1].delete(' ')
             type       = match[2].delete(' ')
-            name       = match[3]
+            name       = match[4]
             setter     = nil
             getter     = nil
             
@@ -327,8 +407,8 @@ class AppleProperty
         return str_value
     end
     
-    def update_types(mai_classes)
-        @type = mai_class_name(@type, mai_classes)
+    def update_types(mai_classes, mai_protocols)
+        @type = mai_class_name(@type, mai_classes, mai_protocols)
     end
     
     def getter
@@ -345,6 +425,14 @@ class AppleProperty
     
     def readonly?
         return self.access == READONLY
+    end
+    
+    def contains_protocol(protocol)
+        if self.type.include?('<' + protocol + '>')
+            return true
+        end
+        
+        return false
     end
     
     def <=>(other)
@@ -383,9 +471,9 @@ class AppleProperty
     
 end
 
-def parse_headers(container, header_path)
+def parse_headers(classes, protocols, header_path)
     Dir.foreach(header_path) do | filename |
-        current_class = nil
+        current_interface = nil
 
         filename = header_path + '/' + filename
 
@@ -395,38 +483,60 @@ def parse_headers(container, header_path)
 
         File.readlines(filename).each do | line |
 
-            match = /@interface\s+(\w+)/.match(line)
+            match = /@interface\s+(\w+)\s*:\s*(\w+)\s*(\<(.+)\>)*/.match(line)
             if match != nil
                 
                 class_name = match[1]
-                current_class = container[class_name]
-                superclass = nil
+                superclass = match[2]
                 
-                match = /@interface\s+\w+\s*:\s*(\w+)/.match(line)
-                if match != nil
-                    superclass = match[1]
+                protocols_str = match[4]
+                
+                current_interface = AppleClass.new(class_name, superclass)
+                
+                if protocols_str != nil
+                    protocols_str.split(',').each do | protocol_str |
+                        protocol_str = protocol_str.strip
+                        current_interface.add_protocol(protocol_str)
+                    end
                 end
                 
-                if current_class == nil
-                    current_class = AppleClass.new(class_name, superclass)
-                    container[class_name] = current_class
+                classes[class_name] = current_interface
+            end
+
+            match = /@protocol\s*(\w+)\s*(\<(.+)\>)*/.match(line)
+            
+            if match != nil
+                protocol_name = match[1]
+                current_interface = protocols[protocol_name]
+                
+                protocols_str = match[3]
+                
+                current_interface = AppleInterface.new(protocol_name)
+                
+                if protocols_str != nil
+                    protocols_str.split(',').each do | protocol_str |
+                        protocol_str = protocol_str.strip
+                        current_interface.add_protocol(protocol_str)
+                    end
                 end
+                
+                protocols[protocol_name] = current_interface
             end
 
             match = /@end/.match(line)
             if match != nil
-                current_class = nil
+                current_interface = nil
             end
 
-            if current_class != nil
+            if current_interface != nil
                 method = AppleMethod.parse(line)
                 if method != nil
-                    current_class.add_method(method)
+                    current_interface.add_method(method)
                 end
                 
                 property = AppleProperty.parse(line)
                 if property != nil
-                    current_class.add_property(property)
+                    current_interface.add_property(property)
                 end
             end
         end
@@ -498,11 +608,11 @@ def write_initializer(file, name, args, prototype, ios_class_name, mac_class_nam
     file.write("#endif\n\n")
 end
 
-parse_headers(ios_classes, ios_foundation_header_path)
-parse_headers(ios_classes, ios_uikit_header_path)
+parse_headers(ios_classes, ios_foundation_protocols, ios_foundation_header_path)
+parse_headers(ios_classes, ios_protocols, ios_uikit_header_path)
 
-parse_headers(mac_classes, mac_foundation_header_path)
-parse_headers(mac_classes, mac_appkit_header_path)
+parse_headers(mac_classes, mac_foundation_protocols, mac_foundation_header_path)
+parse_headers(mac_classes, mac_protocols, mac_appkit_header_path)
 
 ios_classes.each do | ios_class_name, ios_class |
     if ios_class_name.start_with?('UI')
@@ -516,12 +626,30 @@ ios_classes.each do | ios_class_name, ios_class |
     end
 end
 
+mac_protocols.each do | mac_protocol_name, mac_protocol |
+    if mac_protocol_name.start_with?('NS')
+        ios_protocol_name = 'UI' + mac_protocol_name[2...mac_protocol_name.length]
+        
+        if ios_protocols.include?(ios_protocol_name) or ios_protocols.include?(mac_protocol_name)
+            mai_protocol_name = 'MAI' + mac_protocol_name[2...mac_protocol_name.length]
+            mai_protocol = AppleInterface.new(mai_protocol_name)
+            mai_protocols[mai_protocol_name] = mai_protocol
+        end
+    end
+end
+
+mac_foundation_protocols.each do | mac_protocol_name, mac_protocol |
+    if ios_foundation_protocols.include?(mac_protocol_name)
+        mai_foundation_protocols[mac_protocol_name] = mac_protocol
+    end
+end
+
 ios_classes.each do | ios_class_name, ios_class |
-    ios_class.update_types(mai_classes)
+    ios_class.update_types(mai_classes, mai_protocols)
 end
 
 mac_classes.each do | mac_class_name, mac_class |
-    mac_class.update_types(mai_classes)
+    mac_class.update_types(mai_classes, mai_protocols)
 end
 
 ios_class_names = []
@@ -564,7 +692,7 @@ ios_class_names.each do | ios_class_name |
     
     mai_methods    = []
     mai_properties = []
-    
+        
     ios_methods.each do | method_name, ios_method |
         if mac_methods.include?(method_name)
             mac_method = mac_methods[method_name]
@@ -594,11 +722,34 @@ ios_class_names.each do | ios_class_name |
         header_file         = File.open(header_filename,         "wb")
         implementation_file = File.open(implementation_filename, "wb")
     
+        protocols_str = ios_class.protocols.select{| protocol | protocol.start_with?('MAI') or mai_foundation_protocols.include?(protocol) }.join(',')
+    
         header_file.write("#if TARGET_OS_IPHONE\n")
         header_file.write("@import UIKit;\n")
         header_file.write("#else\n")
         header_file.write("@import AppKit;\n")
         header_file.write("#endif\n\n")
+        
+        
+        mai_protocols.each do | protocol, ignored |
+            contains_protocol = ios_class.contains_protocol(protocol)
+            
+            mai_methods.each do | mai_method |
+                if mai_method.contains_protocol(protocol)
+                    contains_protocol = true
+                end
+            end
+            
+            mai_properties.each do | mai_property |
+                if mai_property.contains_protocol(protocol)
+                    contains_protocol = true
+                end
+            end
+        
+            if contains_protocol and protocol.start_with?('MAI')
+                header_file.write("#import <#{protocol}.h>\n")
+            end
+        end
         
         mai_class_names_by_ios_class_name.each do | ignored, other_mai_class |
             if mai_class_name != other_mai_class
@@ -608,7 +759,11 @@ ios_class_names.each do | ios_class_name |
         
         header_file.write("\n")
         
-        header_file.write("@interface #{mai_class_name} : NSObject\n")
+        if protocols_str.length > 0
+            header_file.write("@interface #{mai_class_name} : NSObject<#{protocols_str}>\n")
+        else
+            header_file.write("@interface #{mai_class_name} : NSObject\n")
+        end
         
         implementation_file.write("#import \"#{mai_class_name}.h\"\n")
         implementation_file.write("@implementation #{mai_class_name}\n\n")
@@ -683,4 +838,37 @@ ios_class_names.each do | ios_class_name |
 
         umbrella_header_file.write("#import \"#{mai_class_name}.h\n")
     end
+end
+
+mai_protocols.each do | mai_protocol_name, mai_protocol |
+    protocol_filename = File.join(output_path, mai_protocol_name + ".h")
+    protocol_file = open(protocol_filename, "wb")
+    
+    protocols_str = mai_protocol.protocols.select{| protocol | protocol.start_with?('MAI') or mai_foundation_protocols.include?(protocol) }.join(',')
+    
+    protocol_file.write("#if TARGET_OS_IPHONE\n")
+    protocol_file.write("@import UIKit;\n")
+    protocol_file.write("#else\n")
+    protocol_file.write("@import AppKit;\n")
+    protocol_file.write("#endif\n\n")
+
+    mai_class_names_by_ios_class_name.each do | ignored, mai_class_name |
+        protocol_file.write("@class #{mai_class_name};\n")
+    end
+
+    if protocols_str.length > 0
+        protocol_file.write("@protocol #{mai_protocol_name} <#{protocols_str}>\n")
+    else
+        protocol_file.write("@protocol #{mai_protocol_name}\n")
+    end
+    
+    mai_protocol.methods.each do | mai_method |
+        protocol_file.write('    ' + mai_method.to_s + ";\n")
+    end
+    
+    mai_protocol.properties.each do | mai_property |
+        header_file.write('    ' + mai_property.to_s + ";\n")
+    end
+
+    protocol_file.write("@end\n")
 end
