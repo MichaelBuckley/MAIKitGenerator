@@ -721,11 +721,14 @@ def write_initializer(file, name, args, prototype, ios_class_name, mac_class_nam
 
     file.write(prototype + "\n")
     file.write("\{\n")
+    file.write("#pragma clang diagnostic push\n")
+    file.write("#pragma clang diagnostic ignored \"-Wincompatible-pointer-types\"\n")
     file.write("#if TARGET_OS_IPHONE\n")
     file.write("    return (#{mai_class_name}*) [(#{ios_class_name}*) self#{method_call}];\n")
     file.write("#else\n")
     file.write("    return (#{mai_class_name}*) [(#{mac_class_name}*) self#{method_call}];\n")
     file.write("#endif\n")
+    file.write("#pragma clang diagnostic pop\n")
     file.write("\}\n\n")
 end
 
@@ -734,11 +737,14 @@ def write_convenience_constructor(file, name, args, prototype, ios_class_name, m
 
     file.write(prototype + "\n")
     file.write("\{\n")
+    file.write("#pragma clang diagnostic push\n")
+    file.write("#pragma clang diagnostic ignored \"-Wincompatible-pointer-types\"\n")
     file.write("#if TARGET_OS_IPHONE\n")
     file.write("    return (#{mai_class_name}*) [#{ios_class_name}#{method_call}];\n")
     file.write("#else\n")
     file.write("    return (#{mai_class_name}*) [#{mac_class_name}#{method_call}];\n")
     file.write("#endif\n")
+    file.write("#pragma clang diagnostic pop\n")
     file.write("\}\n\n")
 end
 
