@@ -17,6 +17,9 @@ mac_foundation_header_path = mac_sdk_path + '/System/Library/Frameworks/Foundati
 
 output_path = 'output'
 
+ios_foundation_classes = {}
+mac_foundation_classes = {}
+
 ios_classes = {}
 mac_classes = {}
 mai_classes = {}
@@ -180,7 +183,7 @@ class AppleClass < AppleInterface
 
         superclass_name = self.superclass
 
-        while superclass_name != nil and superclass_name != 'NSObject'
+        while superclass_name != nil and classes[superclass_name] != nil and superclass_name != 'NSObject'
             superclass = classes[superclass_name]
             methods = methods.merge(superclass.methods)
             superclass_name = superclass.superclass
@@ -195,7 +198,7 @@ class AppleClass < AppleInterface
 
         superclass_name = self.superclass
 
-        while superclass_name != nil and superclass_name != 'NSObject'
+        while superclass_name != nil and classes[superclass_name] != nil and superclass_name != 'NSObject'
             superclass = classes[superclass_name]
             properties = properties.merge(superclass.properties)
             superclass_name = superclass.superclass
@@ -748,11 +751,11 @@ def write_convenience_constructor(file, name, args, prototype, ios_class_name, m
     file.write("\}\n\n")
 end
 
-parse_headers(ios_classes, ios_foundation_protocols, ios_foundation_enums, ios_foundation_header_path)
+parse_headers(ios_foundation_classes, ios_foundation_protocols, ios_foundation_enums, ios_foundation_header_path)
 
 parse_headers(ios_classes, ios_protocols, ios_enums, ios_uikit_header_path)
 
-parse_headers(mac_classes, mac_foundation_protocols, mac_foundation_enums, mac_foundation_header_path)
+parse_headers(mac_foundation_classes, mac_foundation_protocols, mac_foundation_enums, mac_foundation_header_path)
 parse_headers(mac_classes, mac_protocols, mac_enums, mac_appkit_header_path)
 
 ios_enums.each do | ios_enum_name, ios_enum |
