@@ -82,7 +82,7 @@ def mai_class_name(class_name, mai_classes, mai_protocols, mai_enums)
         end
 
         if class_name.start_with?("NS") or class_name.start_with?("UI")
-            replaced_name = "MAI" + class_name[2...-1]
+            replaced_name = "MAI" + class_name[2...class_name.length]
 
             if mai_enums.include?(replaced_name)
                 mai_class = replaced_name
@@ -328,6 +328,10 @@ class AppleMethod
     def is_initializer
         return self.type == '-' && self.name.start_with?('init')
     end
+    
+    def is_convenience_constructor
+        return self.type == '+' && self.return_type == 'instancetype' 
+    end
 end
 
 class AppleProperty
@@ -494,7 +498,23 @@ class AppleEnum
     end
 
     def add_member(name, value)
-        members.push({'name' => 'MAI' + name[2...name.length], 'value' => value })
+        if value != nil
+            value = value.gsub('NS', 'MAI').gsub('UI', 'MAI')
+        end
+        
+        self.members.push({'name' => 'MAI' + name[2...name.length], 'value' => value })
+    end
+    
+    def remove_member(name)
+        @members = self.members.select { | member | member['name'] != name }
+    end
+    
+    def has_member?(name)
+        return self.members.select { | member | member['name'] == name }.length > 0
+    end
+    
+    def member_names
+        return self.members.map { | member | member['name'] }
     end
 
     def <=>(other)
@@ -512,7 +532,7 @@ class AppleEnum
     end
 
     def to_s
-        str_value  = self.macro + '(' + self.type + ', ' + self.name + ") {\n"
+        str_value  = 'typedef ' + self.macro + '(' + self.type + ', ' + self.name + ") {\n"
         str_value += self.members.map { | member |
             member['value'] ? "#{member['name']} = #{member['value']}" : member['name']
         }.join(",\n")
@@ -709,6 +729,19 @@ def write_initializer(file, name, args, prototype, ios_class_name, mac_class_nam
     file.write("\}\n\n")
 end
 
+def write_convenience_constructor(file, name, args, prototype, ios_class_name, mac_class_name, mai_class_name)
+    method_call = method_call_str(name, args)
+
+    file.write(prototype + "\n")
+    file.write("\{\n")
+    file.write("#if TARGET_OS_IPHONE\n")
+    file.write("    return (#{mai_class_name}*) [#{ios_class_name}#{method_call}];\n")
+    file.write("#else\n")
+    file.write("    return (#{mai_class_name}*) [#{mac_class_name}#{method_call}];\n")
+    file.write("#endif\n")
+    file.write("\}\n\n")
+end
+
 parse_headers(ios_classes, ios_foundation_protocols, ios_foundation_enums, ios_foundation_header_path)
 
 parse_headers(ios_classes, ios_protocols, ios_enums, ios_uikit_header_path)
@@ -718,10 +751,36 @@ parse_headers(mac_classes, mac_protocols, mac_enums, mac_appkit_header_path)
 
 ios_enums.each do | ios_enum_name, ios_enum |
     mac_enum = mac_enums[ios_enum_name]
-    if mac_enum != nil and (ios_enum <=> mac_enum) == 0
-        mai_enums[ios_enum_name] = ios_enum
+    if mac_enum != nil
+        ios_enum.member_names.each do | member_name |
+            if (!mac_enum.has_member?(member_name))
+                ios_enum.remove_member(member_name)
+            end
+        end
     end
 end
+
+mac_enums.each do | mac_enum_name, mac_enum |
+    ios_enum = ios_enums[mac_enum_name]
+    if ios_enum != nil
+        mac_enum.member_names.each do | member_name |
+            if (!ios_enum.has_member?(member_name))
+                mac_enum.remove_member(member_name)
+            end
+        end
+    end
+end
+
+
+ios_enums.each do | ios_enum_name, ios_enum |
+    mac_enum = mac_enums[ios_enum_name]
+    if mac_enum != nil        
+        if (ios_enum <=> mac_enum) == 0
+            mai_enums[ios_enum_name] = ios_enum
+        end
+    end
+end
+
 
 ios_classes.each do | ios_class_name, ios_class |
     if ios_class_name.start_with?('UI') or ios_class_name.start_with?('NS')
@@ -918,6 +977,16 @@ ios_class_names.sort.each do | ios_class_name |
                 end
 
                 write_initializer(
+                    implementation_file,
+                    mai_method.name,
+                    mai_method.argument_names,
+                    mai_method.to_s,
+                    ios_class_name,
+                    mac_class_name,
+                    mai_class_name
+                )
+            elsif mai_method.is_convenience_constructor
+                write_convenience_constructor(
                     implementation_file,
                     mai_method.name,
                     mai_method.argument_names,
