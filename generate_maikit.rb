@@ -206,6 +206,21 @@ class AppleClass < AppleInterface
 
         return properties
     end
+    
+    def base_class(classes)
+        superclass_name = self.superclass
+        
+        while superclass_name != nil and superclass_name != 'NSObject'
+            if classes[superclass_name] == nil
+                return superclass_name
+            else
+                superclass = classes[superclass_name]
+                superclass_name = superclass.superclass
+            end
+        end
+        
+        return 'NSObject'
+    end
 
 end
 
@@ -948,11 +963,13 @@ ios_class_names.sort.each do | ios_class_name |
         end
 
         header_file.write("\n")
+        
+        base_class = ios_class.base_class(ios_classes)
 
         if protocols_str.length > 0
-            header_file.write("@interface #{mai_class_name} : NSObject<#{protocols_str}>\n")
+            header_file.write("@interface #{mai_class_name} : #{base_class}<#{protocols_str}>\n")
         else
-            header_file.write("@interface #{mai_class_name} : NSObject\n")
+            header_file.write("@interface #{mai_class_name} : #{base_class}\n")
         end
 
         implementation_file.write("#import \"#{mai_class_name}.h\"\n")
