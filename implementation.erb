@@ -21,7 +21,7 @@
 #if TARGET_OS_IPHONE
     return (<%= mai_class.name %>*) [<%= mai_class.ios_name %> alloc];
 #else
-    return (<%= mai_class.name %>*)  [<%= mai_class.mac_name %> alloc];
+    return (<%= mai_class.name %>*) [<%= mai_class.mac_name %> alloc];
 #endif
 }
 
