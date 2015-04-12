@@ -1,0 +1,32 @@
+#if TARGET_OS_IPHONE
+@import UIKit;
+#else
+@import AppKit;
+#endif
+
+#import "MAIEnums.h"
+
+<% for protocol in protocols_to_import %>
+<% if protocol != mai_protocol.name %>
+#import "<%= protocol %>.h"
+<% end %>
+<% end %>
+
+<% for cls in classes_to_import %>
+@class <%= cls %>;
+<% end %>
+
+<% if mai_protocol.protocols_str(mai_foundation_protocols).empty? %>
+@protocol <%= mai_protocol.name %><% else %>
+@interface <%= mai_protocol.name %> <<%= mai_protocol.protocols_str(mai_foundation_protocols) %>>
+<% end %>
+
+<% for method in mai_protocol.methods %>
+<%= method.to_s %>;
+<% end %>
+
+<% for property in mai_protocol.properties %>
+<%= property.to_s %>;
+<% end %>
+
+@end

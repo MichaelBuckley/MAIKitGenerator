@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby -w
 
+require 'erb'
 require 'fileutils'
 require 'set'
 
@@ -17,28 +18,6 @@ mac_foundation_header_path = mac_sdk_path + '/System/Library/Frameworks/Foundati
 
 output_path = 'MAIKit'
 
-ios_foundation_classes = {}
-mac_foundation_classes = {}
-
-ios_classes = {}
-mac_classes = {}
-mai_classes = {}
-
-ios_protocols = {}
-mac_protocols = {}
-mai_protocols = {}
-
-mac_foundation_protocols = {}
-ios_foundation_protocols = {}
-mai_foundation_protocols = {}
-
-ios_enums = {}
-mac_enums = {}
-mai_enums = {}
-
-ios_foundation_enums = {}
-mac_foundation_enums = {}
-
 class String
     def to_setter
         selector = self.clone
@@ -48,21 +27,7 @@ class String
     end
 end
 
-def compare_types(type1, type2)
-    generic_class_types = [ 'id', 'instancetype' ]
-
-    if generic_class_types.include?(type1) and generic_class_types.include?(type2)
-        return 0
-    elsif generic_class_types.include?(type1) and type2.end_with?('*')
-        return 0
-    elsif type1.end_with?('*') and generic_class_types.include?(type2)
-        return 0
-    end
-
-    return type1 <=> type2
-end
-
-def mai_class_name(class_name, mai_classes, mai_protocols, mai_enums)
+def convert_to_mai_type(class_name, mai_classes, mai_protocols, mai_enums)
     mai_class = class_name
 
     if class_name == 'NSRect'
@@ -75,7 +40,7 @@ def mai_class_name(class_name, mai_classes, mai_protocols, mai_enums)
         if class_name.start_with?("NS") or class_name.start_with?("UI")
             replaced_name = "MAI" + class_name[2...-1]
 
-            mai_classes.each do | mai_class_name, ignored |
+            mai_classes.keys.each do | mai_class_name |
                 if replaced_name.split(' ').include? mai_class_name
                     replaced_name = replaced_name + '*'
                     mai_class = replaced_name
@@ -110,6 +75,9 @@ class AppleInterface
     attr_reader :methods
     attr_reader :properties
     attr_reader :protocols
+
+    attr_accessor :ios_name
+    attr_accessor :mac_name
 
     def initialize(name)
         @name        = name
@@ -167,20 +135,32 @@ class AppleInterface
 
         return false
     end
-    
+
     def immediate_protocol_names(foundation_protocols)
         return self.protocols.select{ | protocol |
             (protocol.start_with?('MAI') or foundation_protocols.include?(protocol)) and
             protocol != 'NSObject'
         }
     end
-    
+
+    def protocols_str(foundation_protocols)
+        return self.immediate_protocol_names(foundation_protocols).join(',')
+    end
+
+    def all_methods(classes)
+        return self.methods
+    end
+
+    def all_properties(classes)
+        return self.properties
+    end
+
 end
 
 class AppleClass < AppleInterface
-    attr_reader :superclass
+    attr_accessor :superclass
 
-    def initialize(name, superclass)
+    def initialize(name, superclass = 'NSObject')
         @superclass = superclass
         super(name)
     end
@@ -215,7 +195,7 @@ class AppleClass < AppleInterface
         return properties
     end
 
-    def base_class(classes)
+    def root_class(classes)
         superclass_name = self.superclass
 
         while superclass_name != nil and superclass_name != 'NSObject'
@@ -285,9 +265,9 @@ class AppleMethod
     def is_initializer
         return self.type == '-' && self.name.start_with?('init')
     end
-    
+
     def is_convenience_constructor
-        return self.type == '+' && self.return_type == 'instancetype' 
+        return self.type == '+' && self.return_type == 'instancetype'
     end
 
     def to_s
@@ -315,9 +295,30 @@ class AppleMethod
         return str_value
     end
 
+    def method_call
+        method_call = ''
+        components = self.name.split(':')
+
+        if self.name.end_with?(':') && components.length != self.argument_names.length
+            raise "#{components.length} arguments required, but #{self.argument_names.length} for #{self.name}"
+        end
+
+        for i in 0...components.length
+            component = components[i]
+            if name.end_with?(':')
+                arg = self.argument_names[i]
+                method_call += " #{component}:#{arg}"
+            else
+                method_call += " #{component}"
+            end
+        end
+
+        return method_call
+    end
+
     def update_types(mai_classes, mai_protocols, mai_enums)
-        @return_type = mai_class_name(@return_type, mai_classes, mai_protocols, mai_enums)
-        @argument_types = @argument_types.map { | argument_type | mai_class_name(argument_type, mai_classes, mai_protocols, mai_enums) }
+        @return_type = convert_to_mai_type(@return_type, mai_classes, mai_protocols, mai_enums)
+        @argument_types = @argument_types.map { | argument_type | convert_to_mai_type(argument_type, mai_classes, mai_protocols, mai_enums) }
     end
 
     def contains_protocol(protocol)
@@ -447,7 +448,7 @@ class AppleProperty
     end
 
     def update_types(mai_classes, mai_protocols, mai_enums)
-        @type = mai_class_name(@type, mai_classes, mai_protocols, mai_enums)
+        @type = convert_to_mai_type(@type, mai_classes, mai_protocols, mai_enums)
     end
 
     def getter
@@ -569,7 +570,11 @@ class AppleEnum
 
 end
 
-def parse_headers(classes, protocols, enums, header_path)
+def parse_headers(header_path)
+    classes   = {}
+    protocols = {}
+    enums     = {}
+
     Dir.foreach(header_path) do | filename |
         current_interface = nil
         current_enum = nil
@@ -692,6 +697,9 @@ def parse_headers(classes, protocols, enums, header_path)
             end
         end
     end
+
+    return classes, protocols, enums
+
 end
 
 def merge_methods_into_properties(methods, input_properties, output_properties)
@@ -725,202 +733,62 @@ def merge_methods_into_properties(methods, input_properties, output_properties)
     end
 end
 
-def method_call_str(name, args)
-    method_call = ''
-    components = name.split(':')
+def create_mai_enums(ios_enums, mac_enums)
+    mai_enums = {}
 
-    if name.end_with?(':') && components.length != args.length
-        raise "#{components.length} arguments required, but #{args.length} for #{name}"
-    end
-
-    for i in 0...components.length
-        component = components[i]
-        if name.end_with?(':')
-            arg = args[i]
-            method_call += " #{component}:#{arg}"
-        else
-            method_call += " #{component}"
-        end
-    end
-
-    return method_call
-end
-
-def write_forwarding_method(file, name, return_type, args, prototype, ios_class_name, mac_class_name, mai_class_name)
-    method_call = method_call_str(name, args)
-    return_str = ''
-    self_str = ''
-    ios_cast_str = ''
-    mac_cast_str = ''
-
-    if return_type == 'instancetype'
-        return_type = 'id'
-    end
-
-    if return_type != 'void'
-        return_str = 'return (' + return_type + ') '
-    end
-
-    if prototype.start_with?('-')
-        self_str = ' self'
-        ios_cast_str = "(#{ios_class_name}*)"
-        mac_cast_str = "(#{mac_class_name}*)"
-    else
-        ios_cast_str = "#{ios_class_name}"
-        mac_cast_str = "#{mac_class_name}"
-    end
-
-    file.write(prototype + "\n")
-    file.write("\{\n")
-    file.write("#pragma clang diagnostic push\n")
-    file.write("#pragma clang diagnostic ignored \"-Wincompatible-pointer-types\"\n")
-    file.write("#pragma clang diagnostic ignored \"-Wenum-conversion\"\n")
-    file.write("#if TARGET_OS_IPHONE\n")
-    file.write("    #{return_str}[#{ios_cast_str}#{self_str}#{method_call}];\n")
-    file.write("#else\n")
-    file.write("    #{return_str}[#{mac_cast_str}#{self_str}#{method_call}];\n")
-    file.write("#endif\n")
-    file.write("#pragma clang diagnostic pop\n")
-    file.write("\}\n\n")
-end
-
-parse_headers(ios_foundation_classes, ios_foundation_protocols, ios_foundation_enums, ios_foundation_header_path)
-
-parse_headers(ios_classes, ios_protocols, ios_enums, ios_uikit_header_path)
-
-parse_headers(mac_foundation_classes, mac_foundation_protocols, mac_foundation_enums, mac_foundation_header_path)
-parse_headers(mac_classes, mac_protocols, mac_enums, mac_appkit_header_path)
-
-ios_enums.each do | ios_enum_name, ios_enum |
-    mac_enum = mac_enums[ios_enum_name]
-    if mac_enum != nil
-        ios_enum.member_names.each do | member_name |
-            if (!mac_enum.has_member?(member_name))
-                ios_enum.remove_member(member_name)
+    ios_enums.each do | ios_enum_name, ios_enum |
+        mac_enum = mac_enums[ios_enum_name]
+        if mac_enum != nil
+            ios_enum.member_names.each do | member_name |
+                if (!mac_enum.has_member?(member_name))
+                    ios_enum.remove_member(member_name)
+                end
             end
         end
     end
-end
 
-mac_enums.each do | mac_enum_name, mac_enum |
-    ios_enum = ios_enums[mac_enum_name]
-    if ios_enum != nil
-        mac_enum.member_names.each do | member_name |
-            if (!ios_enum.has_member?(member_name))
-                mac_enum.remove_member(member_name)
+    mac_enums.each do | mac_enum_name, mac_enum |
+        ios_enum = ios_enums[mac_enum_name]
+        if ios_enum != nil
+            mac_enum.member_names.each do | member_name |
+                if (!ios_enum.has_member?(member_name))
+                    mac_enum.remove_member(member_name)
+                end
             end
         end
     end
-end
 
 
-ios_enums.each do | ios_enum_name, ios_enum |
-    mac_enum = mac_enums[ios_enum_name]
-    if mac_enum != nil
-        if (ios_enum <=> mac_enum) == 0
-            mai_enums[ios_enum_name] = ios_enum
+    ios_enums.each do | ios_enum_name, ios_enum |
+        mac_enum = mac_enums[ios_enum_name]
+        if mac_enum != nil
+            if (ios_enum <=> mac_enum) == 0
+                mai_enums[ios_enum_name] = ios_enum
+            end
         end
     end
+
+    return mai_enums
 end
 
+def combine_interfaces(ios_interfaces, mac_interfaces, ios_interface, mac_interface, mai_interface, combine_methods_into_properties)
+    ios_methods = ios_interface.all_methods(ios_interfaces)
+    mac_methods = mac_interface.all_methods(mac_interfaces)
 
-ios_classes.each do | ios_class_name, ios_class |
-    if ios_class_name.start_with?('UI') or ios_class_name.start_with?('NS')
-        mac_class_name = 'NS' + ios_class_name[2...ios_class_name.length]
+    ios_properties = ios_interface.all_properties(ios_interfaces)
+    mac_properties = mac_interface.all_properties(mac_interfaces)
 
-        if mac_classes.include?(mac_class_name)
-            mai_class_name = 'MAI' + mac_class_name[2...mac_class_name.length]
-            mai_class = AppleClass.new(mai_class_name, 'NSObject')
-            mai_classes[mai_class_name] = mai_class
-        end
+    if combine_methods_into_properties
+        merge_methods_into_properties(mac_methods, ios_properties, mac_properties)
+        merge_methods_into_properties(ios_methods, mac_properties, ios_properties)
     end
-end
-
-mac_protocols.each do | mac_protocol_name, mac_protocol |
-    if mac_protocol_name.start_with?('NS')
-        ios_protocol_name = 'UI' + mac_protocol_name[2...mac_protocol_name.length]
-
-        if ios_protocols.include?(ios_protocol_name) or ios_protocols.include?(mac_protocol_name)
-            mai_protocol_name = 'MAI' + mac_protocol_name[2...mac_protocol_name.length]
-            mai_protocol = AppleInterface.new(mai_protocol_name)
-            mai_protocols[mai_protocol_name] = mai_protocol
-        end
-    end
-end
-
-mac_foundation_protocols.each do | mac_protocol_name, mac_protocol |
-    if ios_foundation_protocols.include?(mac_protocol_name)
-        mai_foundation_protocols[mac_protocol_name] = mac_protocol
-    end
-end
-
-ios_classes.each do | ios_class_name, ios_class |
-    ios_class.update_types(mai_classes, mai_protocols, mai_enums)
-end
-
-mac_classes.each do | mac_class_name, mac_class |
-    mac_class.update_types(mai_classes, mai_protocols, mai_enums)
-end
-
-ios_class_names = []
-mac_class_names_by_ios_class_name = {}
-mai_class_names_by_ios_class_name = {}
-
-ios_classes.each do | ios_class_name, ios_class |
-    if ios_class_name.start_with?('UI') or ios_class_name.start_with?('NS')
-        mac_class_name = 'NS' + ios_class_name[2...ios_class_name.length]
-
-        if mac_classes.include?(mac_class_name)
-            mai_class_name = 'MAI' + mac_class_name[2...mac_class_name.length]
-
-            ios_class_names.push(ios_class_name)
-            mac_class_names_by_ios_class_name[ios_class_name] = mac_class_name
-            mai_class_names_by_ios_class_name[ios_class_name] = mai_class_name
-        end
-    end
-end
-
-FileUtils.mkdir_p(output_path)
-
-umbrella_header_file = File.open(File.join(output_path, "MAIKit.h"), "wb")
-
-umbrella_header_file.write("//! Project version number for MAIKit.\n")
-umbrella_header_file.write("FOUNDATION_EXPORT double MAIKitVersionNumber;\n\n")
-
-umbrella_header_file.write("//! Project version string for MAIKit.\n")
-umbrella_header_file.write("FOUNDATION_EXPORT const unsigned char MAIKitVersionString[];\n\n")
-
-enum_header_file = File.open(File.join(output_path, "MAIEnums.h"), "wb")
-
-mai_enums.each do | mai_enum_name, mai_enum |
-    enum_header_file.write(mai_enum.to_s)
-end
-
-ios_class_names.sort.each do | ios_class_name |
-    mac_class_name = mac_class_names_by_ios_class_name[ios_class_name]
-    mai_class_name = mai_class_names_by_ios_class_name[ios_class_name]
-
-    ios_class = ios_classes[ios_class_name]
-    mac_class = mac_classes[mac_class_name]
-
-    ios_methods = ios_class.all_methods(ios_classes)
-    mac_methods = mac_class.all_methods(mac_classes)
-
-    ios_properties = ios_class.all_properties(ios_classes)
-    mac_properties = mac_class.all_properties(mac_classes)
-
-    merge_methods_into_properties(mac_methods, ios_properties, mac_properties)
-    merge_methods_into_properties(ios_methods, mac_properties, ios_properties)
-
-    mai_methods    = []
-    mai_properties = []
 
     ios_methods.each do | method_name, ios_method |
         if mac_methods.include?(method_name)
             mac_method = mac_methods[method_name]
 
             if (ios_method <=> mac_method) == 0
-                mai_methods.push(ios_method)
+                mai_interface.add_method(ios_method)
             end
         end
     end
@@ -930,191 +798,159 @@ ios_class_names.sort.each do | ios_class_name |
             mac_property = mac_properties[property_name]
 
             if (ios_property <=> mac_property) == 0
-                mai_properties.push(ios_property)
+                mai_interface.add_property(ios_property)
             end
         end
     end
 
-    immediate_protocol_names = ios_class.immediate_protocol_names(mai_foundation_protocols)
-
-    if (not mai_methods.empty?) or (not mai_properties.empty? or not immediate_protocol_names.empty?)
-        wrote_init = false
-
-        header_filename         = File.join(output_path, mai_class_name + ".h")
-        implementation_filename = File.join(output_path, mai_class_name + ".m")
-
-        header_file         = File.open(header_filename,         "wb")
-        implementation_file = File.open(implementation_filename, "wb")
-
-        protocols_str = immediate_protocol_names.join(',')
-
-        header_file.write("#if TARGET_OS_IPHONE\n")
-        header_file.write("@import UIKit;\n")
-        header_file.write("#else\n")
-        header_file.write("@import AppKit;\n")
-        header_file.write("#endif\n\n")
-
-        header_file.write("#import \"MAIEnums.h\"\n")
-
-        protocols = []
-        mai_protocols.each do | protocol, ignored |
-            contains_protocol = ios_class.contains_protocol(protocol)
-
-            mai_methods.each do | mai_method |
-                if mai_method.contains_protocol(protocol)
-                    contains_protocol = true
-                end
-            end
-
-            mai_properties.each do | mai_property |
-                if mai_property.contains_protocol(protocol)
-                    contains_protocol = true
-                end
-            end
-
-            if contains_protocol
-                protocols.push(protocol)
-
-                if protocol.start_with?('MAI')
-                    header_file.write("#import <#{protocol}.h>\n")
-                end
-            end
+    ios_interface.protocols.each do | ios_protocol |
+        if mac_interface.contains_protocol(ios_protocol)
+            mai_interface.add_protocol(ios_protocol)
         end
-
-        mai_class_names_by_ios_class_name.sort.each do | ignored, other_mai_class |
-            if mai_class_name != other_mai_class
-                header_file.write("@class #{other_mai_class};\n")
-            end
-        end
-
-        header_file.write("\n")
-
-        base_class = ios_class.base_class(ios_classes)
-
-        if protocols_str.length > 0
-            header_file.write("@interface #{mai_class_name} : #{base_class}<#{protocols_str}>\n")
-        else
-            header_file.write("@interface #{mai_class_name} : #{base_class}\n")
-        end
-
-        implementation_file.write("#pragma clang diagnostic push\n")
-        implementation_file.write("#pragma clang diagnostic ignored \"-Wobjc-protocol-property-synthesis\"\n")
-        implementation_file.write("#pragma clang diagnostic ignored \"-Wprotocol\"\n\n")
-
-        implementation_file.write("#import \"#{mai_class_name}.h\"\n")
-        implementation_file.write("@implementation #{mai_class_name}\n\n")
-        implementation_file.write("+ (instancetype)allocWithZone:(struct _NSZone *)zone\n")
-        implementation_file.write("\{\n")
-        implementation_file.write("#if TARGET_OS_IPHONE\n")
-        implementation_file.write("    return (#{mai_class_name}*) [#{ios_class_name} alloc];\n")
-        implementation_file.write("#else\n")
-        implementation_file.write("    return (#{mai_class_name}*)  [#{mac_class_name} alloc];\n")
-        implementation_file.write("#endif\n")
-        implementation_file.write("\}\n\n")
-        implementation_file.write("#if TARGET_OS_IPHONE\n")
-        implementation_file.write("-(#{ios_class_name}*) ios\n")
-        implementation_file.write("\{\n")
-        implementation_file.write("    return (#{ios_class_name}*) self;\n")
-        implementation_file.write("\}\n")
-        implementation_file.write("#else\n")
-        implementation_file.write("-(#{mac_class_name}*) mac\n")
-        implementation_file.write("\{\n")
-        implementation_file.write("    return (#{mac_class_name}*) self;\n")
-        implementation_file.write("\}\n")
-        implementation_file.write("#endif\n\n")
-
-        if not wrote_init
-            write_forwarding_method(
-                implementation_file,
-                'init',
-                'instancetype',
-                [],
-                '-(instancetype)init',
-                ios_class_name,
-                mac_class_name,
-                mai_class_name
-            )
-        end
-
-        header_file.write("\n")
-
-        mai_properties.each do | mai_property |
-            header_file.write('    ' + mai_property.to_s + ";\n")
-        end
-
-        header_file.write("\n#if TARGET_OS_IPHONE\n")
-        header_file.write("    -(#{ios_class_name}*) ios;\n")
-        header_file.write("#else\n")
-        header_file.write("    -(#{mac_class_name}*) mac;\n")
-        header_file.write("#endif\n\n")
-
-        header_file.write("@end\n\n")
-        
-        header_file.write("#if TARGET_OS_IPHONE\n")
-        header_file.write("@interface #{ios_class_name} (MAIConversion)\n")
-        header_file.write("#else\n")
-        header_file.write("@interface #{mac_class_name} (MAIConversion)\n")
-        header_file.write("#endif\n")
-        header_file.write("    -(#{mai_class_name}*) mai;\n")
-        header_file.write("@end\n")
-        
-        implementation_file.write("+(Class) class\n")
-        implementation_file.write("{\n")
-        implementation_file.write("#if TARGET_OS_IPHONE\n")
-        implementation_file.write("    return [#{ios_class_name} class];\n")
-        implementation_file.write("#else\n")
-        implementation_file.write("    return [#{ios_class_name} class];\n")
-        implementation_file.write("#endif\n")
-        implementation_file.write("}\n\n")
-        
-        implementation_file.write("@end\n\n")
-        
-        implementation_file.write("#pragma clang diagnostic pop\n\n")
-
-        implementation_file.write("#if TARGET_OS_IPHONE\n")
-        implementation_file.write("@implementation #{ios_class_name} (MAIConversion)\n")
-        implementation_file.write("#else\n")
-        implementation_file.write("@implementation #{mac_class_name} (MAIConversion)\n")
-        implementation_file.write("#endif\n")
-        implementation_file.write("-(#{mai_class_name}*) mai\n")
-        implementation_file.write("{\n")
-        implementation_file.write("    return (#{mai_class_name}*) self;\n")
-        implementation_file.write("}\n")
-        implementation_file.write("@end\n")
-
-        umbrella_header_file.write("#import \"#{mai_class_name}.h\n")
     end
 end
 
-mai_protocols.each do | mai_protocol_name, mai_protocol |
+def create_mai_interfaces(ios_interfaces, mac_interfaces, cls)
+    mai_interfaces = {}
+
+    ios_interfaces.each do | ios_interface_name, ios_interface |
+        if ios_interface_name.start_with?('UI') or ios_interface_name.start_with?('NS')
+            mac_interface_name = 'NS' + ios_interface_name[2...ios_interface_name.length]
+
+            if mac_interfaces.include?(mac_interface_name)
+                mai_interface_name = 'MAI' + mac_interface_name[2...mac_interface_name.length]
+                mai_interface = cls.new(mai_interface_name)
+
+                mai_interfaces[mai_interface_name] = mai_interface
+            end
+        end
+    end
+
+    return mai_interfaces
+end
+
+def populate_mai_interfaces(ios_interfaces, mac_interfaces, mai_interfaces, combine_methods_into_properties)
+    ios_interfaces.each do | ios_interface_name, ios_interface |
+        if ios_interface_name.start_with?('UI') or ios_interface_name.start_with?('NS')
+            mac_interface_name = 'NS' + ios_interface_name[2...ios_interface_name.length]
+
+            if mac_interfaces.include?(mac_interface_name)
+                ios_interface = ios_interfaces[ios_interface_name]
+                mac_interface = mac_interfaces[mac_interface_name]
+
+                mai_interface_name = 'MAI' + mac_interface_name[2...mac_interface_name.length]
+                mai_interface = mai_interfaces[mai_interface_name]
+
+                if ios_interface.respond_to?(:root_class) and mai_interface.respond_to?(:superclass)
+                    mai_interface.superclass = ios_interface.root_class(ios_interfaces)
+                end
+
+                mai_interface.ios_name = ios_interface_name
+                mai_interface.mac_name = mac_interface_name
+
+                combine_interfaces(ios_interfaces, mac_interfaces, ios_interface, mac_interface, mai_interface, combine_methods_into_properties)
+            end
+        end
+    end
+
+    return mai_interfaces
+end
+
+def create_mai_foundation_protocols(ios_foundation_protocols, mac_foundation_protocols)
+    mai_foundation_protocols = {}
+
+    mac_foundation_protocols.each do | mac_protocol_name, mac_protocol |
+        if ios_foundation_protocols.include?(mac_protocol_name)
+            mai_foundation_protocols[mac_protocol_name] = mac_protocol
+        end
+    end
+
+    return mai_foundation_protocols
+end
+
+def write_enum_header(mai_enums, output_path)
+    enum_header_file = File.open(File.join(output_path, "MAIEnums.h"), "wb")
+
+    mai_enums.each do | mai_enum_name, mai_enum |
+        enum_header_file.write(mai_enum.to_s)
+    end
+end
+
+ios_foundation_classes, ios_foundation_protocols, ios_foundation_enums = parse_headers(ios_foundation_header_path)
+
+ios_classes, ios_protocols, ios_enums = parse_headers(ios_uikit_header_path)
+
+mac_foundation_classes, mac_foundation_protocols, mac_foundation_enums = parse_headers(mac_foundation_header_path)
+
+mac_classes, mac_protocols, mac_enums = parse_headers(mac_appkit_header_path)
+
+mai_foundation_protocols = create_mai_foundation_protocols(ios_foundation_protocols, mac_foundation_protocols)
+
+mai_classes = create_mai_interfaces(ios_classes, mac_classes, AppleClass)
+
+mai_protocols = create_mai_interfaces(ios_protocols, mac_protocols, AppleInterface)
+
+mai_enums = create_mai_enums(ios_enums, mac_enums)
+
+ios_classes.values.each do | ios_class |
+    ios_class.update_types(mai_classes, mai_protocols, mai_enums)
+end
+
+mac_classes.values.each do | mac_class |
+    mac_class.update_types(mai_classes, mai_protocols, mai_enums)
+end
+
+ios_protocols.values.each do | ios_protocol |
+    ios_protocol.update_types(mai_classes, mai_protocols, mai_enums)
+end
+
+mac_protocols.values.each do | mac_protocol |
+    mac_protocol.update_types(mai_classes, mai_protocols, mai_enums)
+end
+
+populate_mai_interfaces(ios_classes, mac_classes, mai_classes, true)
+
+populate_mai_interfaces(ios_protocols, mac_protocols, mai_protocols, false)
+
+FileUtils.mkdir_p(output_path)
+
+umbrella_header_file = File.open(File.join(output_path, "MAIKit.h"), "wb")
+
+classes_to_import = mai_classes.keys
+protocols_to_import = mai_protocols.keys
+
+umbrella_header_template_string = File.open('umbrella_header.erb', 'rb').read()
+umbrella_header_template = ERB.new(umbrella_header_template_string, nil, '<>')
+umbrella_header_file.write(umbrella_header_template.result(binding))
+
+write_enum_header(mai_enums, output_path)
+
+header_template_string = File.open("header.erb", "rb").read()
+implementation_template_string = File.open("implementation.erb", "rb").read()
+
+mai_classes.keys.sort.each do | mai_class_name |
+    mai_class = mai_classes[mai_class_name]
+
+    header_filename         = File.join(output_path, mai_class_name + ".h")
+    implementation_filename = File.join(output_path, mai_class_name + ".m")
+
+    header_file         = File.open(header_filename,         "wb")
+    implementation_file = File.open(implementation_filename, "wb")
+
+    header_template = ERB.new(header_template_string, nil, '<>')
+    header_file.write(header_template.result(binding))
+
+    implementation_template = ERB.new(implementation_template_string, nil, '<>')
+    implementation_file.write(implementation_template.result(binding))
+end
+
+mai_protocols.keys.sort.each do | mai_protocol_name |
+    mai_protocol = mai_protocols[mai_protocol_name]
+
     protocol_filename = File.join(output_path, mai_protocol_name + ".h")
     protocol_file = open(protocol_filename, "wb")
 
-    protocols_str = mai_protocol.immediate_protocol_names(mai_foundation_protocols).join(',')
-
-    protocol_file.write("#if TARGET_OS_IPHONE\n")
-    protocol_file.write("@import UIKit;\n")
-    protocol_file.write("#else\n")
-    protocol_file.write("@import AppKit;\n")
-    protocol_file.write("#endif\n\n")
-
-    mai_class_names_by_ios_class_name.each do | ignored, mai_class_name |
-        protocol_file.write("@class #{mai_class_name};\n")
-    end
-
-    if protocols_str.length > 0
-        protocol_file.write("@protocol #{mai_protocol_name} <#{protocols_str}>\n")
-    else
-        protocol_file.write("@protocol #{mai_protocol_name}\n")
-    end
-
-    mai_protocol.methods.each do | mai_method |
-        protocol_file.write('    ' + mai_method.to_s + ";\n")
-    end
-
-    mai_protocol.properties.each do | mai_property |
-        header_file.write('    ' + mai_property.to_s + ";\n")
-    end
-
-    protocol_file.write("@end\n")
+    protocol_template_string = File.open('protocol.erb', 'rb').read()
+    protocol_template = ERB.new(protocol_template_string, nil, '<>')
+    protocol_file.write(protocol_template.result(binding))
 end
