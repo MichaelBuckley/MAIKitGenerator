@@ -1,7 +1,7 @@
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored \"-Wobjc-protocol-property-synthesis"
-#pragma clang diagnostic ignored \"-Wprotocol"
-#pragma clang diagnostic ignored \"-Wincomplete-implementation"
+#pragma clang diagnostic ignored "-Wobjc-protocol-property-synthesis"
+#pragma clang diagnostic ignored "-Wprotocol"
+#pragma clang diagnostic ignored "-Wincomplete-implementation"
 
 #import "<%= mai_class.name %>.h"
 
@@ -19,9 +19,9 @@
 + (instancetype)allocWithZone:(struct _NSZone *)zone
 {
 #if TARGET_OS_IPHONE
-    return (#<%= mai_class.ios_name %>*) [<%= mai_class.ios_name %> alloc];
+    return (<%= mai_class.name %>*) [<%= mai_class.ios_name %> alloc];
 #else
-    return (#<%= mai_class.mac_name %>*)  [<%= mai_class.mac_name %> alloc];
+    return (<%= mai_class.name %>*)  [<%= mai_class.mac_name %> alloc];
 #endif
 }
 
@@ -46,9 +46,9 @@
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types"
 #pragma clang diagnostic ignored "-Wenum-conversion"
 #if TARGET_OS_IPHONE
-    return (id) [(<%= mai_class.ios_name %>*) self <%= method.method_call %>];
+    return (id) [(<%= mai_class.ios_name %>*) self<%= method.method_call %>];
 #else
-    return (id) [(<%= mai_class.mac_name  %>*) self <%= method.method_call %>];
+    return (id) [(<%= mai_class.mac_name  %>*) self<%= method.method_call %>];
 #endif
 #pragma clang diagnostic pop
 }<% elsif method.is_convenience_constructor %>
@@ -58,9 +58,9 @@
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types"
 #pragma clang diagnostic ignored "-Wenum-conversion"
 #if TARGET_OS_IPHONE
-    return (id) [<%= mai_class.ios_name %> <%= method.method_call %>];
+    return (id) [<%= mai_class.ios_name %><%= method.method_call %>];
 #else
-    return (id) [<%= mai_class.mac_name %> <%= method.method_call %>];
+    return (id) [<%= mai_class.mac_name %><%= method.method_call %>];
 #endif
 #pragma clang diagnostic pop
 }

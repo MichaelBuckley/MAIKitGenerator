@@ -21,11 +21,11 @@
 @interface <%= mai_protocol.name %> <<%= mai_protocol.protocols_str(mai_foundation_protocols) %>>
 <% end %>
 
-<% for method in mai_protocol.methods %>
+<% for method in mai_protocol.methods.values %>
 <%= method.to_s %>;
 <% end %>
 
-<% for property in mai_protocol.properties %>
+<% for property in mai_protocol.properties.values %>
 <%= property.to_s %>;
 <% end %>
 
