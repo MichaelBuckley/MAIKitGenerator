@@ -1,0 +1,421 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		305DCA231ADB5ACF00273A5C /* MAIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 305DCA171ADB5ACF00273A5C /* MAIKit.framework */; };
+		305DCA2A1ADB5ACF00273A5C /* MAIKit_macTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 305DCA291ADB5ACF00273A5C /* MAIKit_macTests.m */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		305DCA241ADB5ACF00273A5C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 305DCA0E1ADB5ACF00273A5C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 305DCA161ADB5ACF00273A5C;
+			remoteInfo = "MAIKit-mac";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		305DCA171ADB5ACF00273A5C /* MAIKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = MAIKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		305DCA1B1ADB5ACF00273A5C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		305DCA221ADB5ACF00273A5C /* MAIKit-macTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "MAIKit-macTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		305DCA281ADB5ACF00273A5C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		305DCA291ADB5ACF00273A5C /* MAIKit_macTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MAIKit_macTests.m; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		305DCA131ADB5ACF00273A5C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		305DCA1F1ADB5ACF00273A5C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				305DCA231ADB5ACF00273A5C /* MAIKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		305DCA0D1ADB5ACF00273A5C = {
+			isa = PBXGroup;
+			children = (
+				305DCA191ADB5ACF00273A5C /* MAIKit */,
+				305DCA261ADB5ACF00273A5C /* MAIKit-macTests */,
+				305DCA181ADB5ACF00273A5C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		305DCA181ADB5ACF00273A5C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				305DCA171ADB5ACF00273A5C /* MAIKit.framework */,
+				305DCA221ADB5ACF00273A5C /* MAIKit-macTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		305DCA191ADB5ACF00273A5C /* MAIKit */ = {
+			isa = PBXGroup;
+			children = (
+				305DCA331ADB5B2F00273A5C /* Source */,
+				305DCA1A1ADB5ACF00273A5C /* Supporting Files */,
+			);
+			name = MAIKit;
+			path = "MAIKit-mac";
+			sourceTree = "<group>";
+		};
+		305DCA1A1ADB5ACF00273A5C /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				305DCA1B1ADB5ACF00273A5C /* Info.plist */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		305DCA261ADB5ACF00273A5C /* MAIKit-macTests */ = {
+			isa = PBXGroup;
+			children = (
+				305DCA291ADB5ACF00273A5C /* MAIKit_macTests.m */,
+				305DCA271ADB5ACF00273A5C /* Supporting Files */,
+			);
+			path = "MAIKit-macTests";
+			sourceTree = "<group>";
+		};
+		305DCA271ADB5ACF00273A5C /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				305DCA281ADB5ACF00273A5C /* Info.plist */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		305DCA331ADB5B2F00273A5C /* Source */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Source;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		305DCA141ADB5ACF00273A5C /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		305DCA161ADB5ACF00273A5C /* MAIKit-mac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 305DCA2D1ADB5ACF00273A5C /* Build configuration list for PBXNativeTarget "MAIKit-mac" */;
+			buildPhases = (
+				305DCA121ADB5ACF00273A5C /* Sources */,
+				305DCA131ADB5ACF00273A5C /* Frameworks */,
+				305DCA141ADB5ACF00273A5C /* Headers */,
+				305DCA151ADB5ACF00273A5C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "MAIKit-mac";
+			productName = "MAIKit-mac";
+			productReference = 305DCA171ADB5ACF00273A5C /* MAIKit.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		305DCA211ADB5ACF00273A5C /* MAIKit-macTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 305DCA301ADB5ACF00273A5C /* Build configuration list for PBXNativeTarget "MAIKit-macTests" */;
+			buildPhases = (
+				305DCA1E1ADB5ACF00273A5C /* Sources */,
+				305DCA1F1ADB5ACF00273A5C /* Frameworks */,
+				305DCA201ADB5ACF00273A5C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				305DCA251ADB5ACF00273A5C /* PBXTargetDependency */,
+			);
+			name = "MAIKit-macTests";
+			productName = "MAIKit-macTests";
+			productReference = 305DCA221ADB5ACF00273A5C /* MAIKit-macTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		305DCA0E1ADB5ACF00273A5C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0630;
+				ORGANIZATIONNAME = Buckleyisms;
+				TargetAttributes = {
+					305DCA161ADB5ACF00273A5C = {
+						CreatedOnToolsVersion = 6.3;
+					};
+					305DCA211ADB5ACF00273A5C = {
+						CreatedOnToolsVersion = 6.3;
+					};
+				};
+			};
+			buildConfigurationList = 305DCA111ADB5ACF00273A5C /* Build configuration list for PBXProject "MAIKit-mac" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 305DCA0D1ADB5ACF00273A5C;
+			productRefGroup = 305DCA181ADB5ACF00273A5C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				305DCA161ADB5ACF00273A5C /* MAIKit-mac */,
+				305DCA211ADB5ACF00273A5C /* MAIKit-macTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		305DCA151ADB5ACF00273A5C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		305DCA201ADB5ACF00273A5C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		305DCA121ADB5ACF00273A5C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		305DCA1E1ADB5ACF00273A5C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				305DCA2A1ADB5ACF00273A5C /* MAIKit_macTests.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		305DCA251ADB5ACF00273A5C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 305DCA161ADB5ACF00273A5C /* MAIKit-mac */;
+			targetProxy = 305DCA241ADB5ACF00273A5C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		305DCA2B1ADB5ACF00273A5C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Debug;
+		};
+		305DCA2C1ADB5ACF00273A5C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
+		305DCA2E1ADB5ACF00273A5C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				FRAMEWORK_VERSION = A;
+				INFOPLIST_FILE = "MAIKit-mac/Info.plist";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				PRODUCT_NAME = MAIKit;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		305DCA2F1ADB5ACF00273A5C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				FRAMEWORK_VERSION = A;
+				INFOPLIST_FILE = "MAIKit-mac/Info.plist";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				PRODUCT_NAME = MAIKit;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		305DCA311ADB5ACF00273A5C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(DEVELOPER_FRAMEWORKS_DIR)",
+					"$(inherited)",
+				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = "MAIKit-macTests/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		305DCA321ADB5ACF00273A5C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(DEVELOPER_FRAMEWORKS_DIR)",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = "MAIKit-macTests/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		305DCA111ADB5ACF00273A5C /* Build configuration list for PBXProject "MAIKit-mac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				305DCA2B1ADB5ACF00273A5C /* Debug */,
+				305DCA2C1ADB5ACF00273A5C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		305DCA2D1ADB5ACF00273A5C /* Build configuration list for PBXNativeTarget "MAIKit-mac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				305DCA2E1ADB5ACF00273A5C /* Debug */,
+				305DCA2F1ADB5ACF00273A5C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		305DCA301ADB5ACF00273A5C /* Build configuration list for PBXNativeTarget "MAIKit-macTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				305DCA311ADB5ACF00273A5C /* Debug */,
+				305DCA321ADB5ACF00273A5C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 305DCA0E1ADB5ACF00273A5C /* Project object */;
+}
