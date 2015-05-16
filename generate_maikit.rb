@@ -6,7 +6,7 @@ require 'set'
 
 xcode_path = '/Applications/Xcode.app'
 
-ios_sdk_path = xcode_path + '/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator8.1.sdk'
+ios_sdk_path = xcode_path + '/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS8.3.sdk'
 
 ios_uikit_header_path = ios_sdk_path + '/System/Library/Frameworks/UIKit.framework/Headers'
 ios_foundation_header_path = ios_sdk_path + '/System/Library/Frameworks/Foundation.framework/Headers'
