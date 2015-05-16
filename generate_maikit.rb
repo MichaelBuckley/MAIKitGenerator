@@ -372,6 +372,7 @@ class AppleProperty
     WEAK      = 'weak'
     ASSIGN    = 'assign'
     RETAIN    = 'retain'
+    COPY      = 'copy'
     ATOMIC    = 'atomic'
     NONATOMIC = 'nonatomic'
     READONLY  = 'readonly'
@@ -388,13 +389,12 @@ class AppleProperty
     end
 
     def self.parse(line)
-        memory_semantics = ASSIGN
+        memory_semantics = nil
         atomicity        = NONATOMIC
         access           = READWRITE
 
         line.gsub!(/\/\*.+\*\//, '')
-
-        match = /@property\s*\(([^)]*)\)*\s*(\w+(\s*\<.+\>\s*)*\s*\*{0,1})\s+(\w+)/.match(line)
+        match = /@property\s*\(([^)]*)\)*\s*(\w+(\s*\<.+\>\s*)*\s*\*{0,1})\s*(\w+)/.match(line)
 
         if match != nil
             attributes = match[1].delete(' ')
@@ -404,7 +404,7 @@ class AppleProperty
             getter     = nil
 
             for attribute in attributes.split(',')
-                if [ STRONG, WEAK, ASSIGN, RETAIN ].include?(attribute)
+                if [ STRONG, WEAK, ASSIGN, RETAIN, COPY ].include?(attribute)
                     memory_semantics = attribute
                 elsif [ READONLY, READWRITE ].include?(attribute)
                     access = attribute
@@ -432,7 +432,11 @@ class AppleProperty
     end
 
     def to_s
-        str_value = '@property(' + self.atomicity + ', ' + self.access + ', ' + self.memory_semantics
+        str_value = '@property(' + self.atomicity + ', ' + self.access
+
+        if @memory_semantics != nil
+            str_value = str_value + ', ' + self.memory_semantics
+        end
 
         if @setter != nil
             str_value = str_value + ', setter=' + @setter
@@ -476,6 +480,7 @@ class AppleProperty
     end
 
     def <=>(other)
+
         result = (self.type <=> other.type)
         if result != 0
             return result
@@ -501,7 +506,6 @@ class AppleProperty
             return result
         end
 
-        result = (self.memory_semantics <=> other.memory_semantics)
         if result != 0
             return result
         end
