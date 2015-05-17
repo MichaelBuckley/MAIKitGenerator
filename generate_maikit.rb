@@ -521,11 +521,19 @@ class AppleEnum
     attr_reader :name
     attr_reader :members
 
+    @@mai_substitutions = {
+        'MAITextStorageEditedOptions' => 'MAITextStorageEditActions'
+    }
+
     def initialize(macro, type, name)
         @macro   = macro
         @type    = type
         @name    = 'MAI' + name[2...name.length]
         @members = []
+
+        if @@mai_substitutions[@name] != nil
+            @name = @@mai_substitutions[@name]
+        end
     end
 
     def add_member(name, value)
@@ -559,7 +567,7 @@ class AppleEnum
             return result
         end
 
-        return self.members <=> other.members
+        return self.members.map { | member | member['name'] } <=> other.members.map { | member | member['name'] }
     end
 
     def to_s
@@ -643,7 +651,7 @@ def parse_headers(header_path)
                 name  = match[3]
 
                 current_enum = AppleEnum.new(macro, type, name)
-                enums['MAI' + name[2...name.length]] = current_enum;
+                enums[current_enum.name] = current_enum;
                 next;
             end
 
