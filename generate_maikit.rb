@@ -25,6 +25,14 @@ class String
 
         return 'set' + selector + ':'
     end
+    
+    def is_int?
+        return self == 'NSUInteger' || self == 'NSInteger' || self == 'unsigned int' || self == 'int'
+    end
+    
+    def is_enum?()
+        return self.start_with?('MAI') && !self.end_with?('*')
+    end
 end
 
 def convert_to_mai_type(class_name, mai_classes, mai_protocols, mai_enums)
@@ -68,6 +76,16 @@ def convert_to_mai_type(class_name, mai_classes, mai_protocols, mai_enums)
     end
 
     return mai_class
+end
+
+def compare_types(type1, type2)
+    if type1.is_int? && type2.is_enum?
+        return 0
+    elsif type1.is_enum? && type2.is_int?
+        return 0
+    else
+        return type1 <=> type2
+    end
 end
 
 class AppleInterface
@@ -215,14 +233,14 @@ end
 class AppleMethod
     include Comparable
 
-    attr_reader :type
+    attr_reader :prefix
     attr_reader :name
     attr_reader :return_type
     attr_reader :argument_types
     attr_reader :argument_names
 
-    def initialize(type, name, return_type, argument_types, argument_names)
-        @type           = type
+    def initialize(prefix, name, return_type, argument_types, argument_names)
+        @prefix         = prefix
         @name           = name
         @return_type    = return_type
         @argument_types = argument_types
@@ -234,7 +252,7 @@ class AppleMethod
 
         if match != nil
 
-            type        = match[1]
+            prefix      = match[1]
             return_type = match[2].delete(' ')
             first_arg   = match[3]
             name        = nil
@@ -256,18 +274,18 @@ class AppleMethod
                 name = first_arg
             end
 
-            return AppleMethod.new(type, name, return_type, argument_types, argument_names)
+            return AppleMethod.new(prefix, name, return_type, argument_types, argument_names)
         end
 
         return nil
     end
 
     def is_initializer
-        return self.type == '-' && self.name.start_with?('init')
+        return self.prefix == '-' && self.name.start_with?('init')
     end
 
     def is_convenience_constructor
-        return self.type == '+' && self.return_type == 'instancetype'
+        return self.prefix == '+' && self.return_type == 'instancetype'
     end
 
     def to_s
@@ -290,7 +308,7 @@ class AppleMethod
             str_value = self.name
         end
 
-        str_value = self.type + '(' + self.return_type + ')' + str_value
+        str_value = self.prefix + '(' + self.return_type + ')' + str_value
 
         return str_value
     end
@@ -322,7 +340,7 @@ class AppleMethod
     end
 
     def contains_protocol(protocol)
-        if self.type.include?('<' + protocol + '>')
+        if self.return_type.include?('<' + protocol + '>')
             return true
         end
 
@@ -337,7 +355,7 @@ class AppleMethod
     end
 
     def <=>(other)
-        result = (self.type <=> other.type)
+        result = (self.prefix <=> other.prefix)
         if result != 0
             return result
         end
@@ -347,14 +365,21 @@ class AppleMethod
             return result
         end
 
-        result = (self.return_type <=> other.return_type)
+        result = compare_types(self.return_type, other.return_type)
         if result != 0
             return result
         end
 
-        result = (self.argument_types <=> other.argument_types)
+        result = self.argument_types.length <=> other.argument_types.length
         if result != 0
             return result
+        end
+        
+        self.argument_types.zip(other.argument_types).each do | type1, type2 |
+            result = compare_types(type1, type2)
+            if result != 0
+                return result
+            end
         end
 
         return 0
@@ -481,7 +506,7 @@ class AppleProperty
 
     def <=>(other)
 
-        result = (self.type <=> other.type)
+        result = compare_types(self.type, other.type)
         if result != 0
             return result
         end
