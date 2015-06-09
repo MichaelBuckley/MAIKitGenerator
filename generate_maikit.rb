@@ -4,14 +4,14 @@ require 'erb'
 require 'fileutils'
 require 'set'
 
-xcode_path = '/Applications/Xcode.app'
+xcode_path = '/Applications/Xcode-beta.app'
 
-ios_sdk_path = xcode_path + '/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS8.3.sdk'
+ios_sdk_path = xcode_path + '/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS9.0.sdk'
 
 ios_uikit_header_path = ios_sdk_path + '/System/Library/Frameworks/UIKit.framework/Headers'
 ios_foundation_header_path = ios_sdk_path + '/System/Library/Frameworks/Foundation.framework/Headers'
 
-mac_sdk_path = xcode_path + '/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk'
+mac_sdk_path = xcode_path + '/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk'
 
 mac_appkit_header_path = mac_sdk_path + '/System/Library/Frameworks/AppKit.framework/Headers'
 mac_foundation_header_path = mac_sdk_path + '/System/Library/Frameworks/Foundation.framework/Headers'
@@ -25,11 +25,11 @@ class String
 
         return 'set' + selector + ':'
     end
-    
+
     def is_int?
         return self == 'NSUInteger' || self == 'NSInteger' || self == 'unsigned int' || self == 'int'
     end
-    
+
     def is_enum?()
         return self.start_with?('MAI') && !self.end_with?('*')
     end
@@ -253,7 +253,7 @@ class AppleMethod
         if match != nil
 
             prefix      = match[1]
-            return_type = match[2].delete(' ')
+            return_type = match[2].gsub(/\s+\*/, '*')
             first_arg   = match[3]
             name        = nil
 
@@ -374,7 +374,7 @@ class AppleMethod
         if result != 0
             return result
         end
-        
+
         self.argument_types.zip(other.argument_types).each do | type1, type2 |
             result = compare_types(type1, type2)
             if result != 0
