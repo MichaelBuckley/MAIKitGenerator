@@ -25,66 +25,126 @@ class String
 
         return 'set' + selector + ':'
     end
+end
+
+class AppleType
+    attr_reader :modifiers
+    attr_reader :name
+    attr_reader :pointer
+
+    def initialize(str)
+        str = str.strip
+
+        @pointer = str.end_with?('*')
+        if @pointer
+            str = str[0...-1].strip
+        end
+
+        @modifiers = str.split(' ')
+        @name = @modifiers.pop
+    end
+
+    def to_s
+        str = ''
+
+        if self.modifiers.length > 0
+            components = self.modifiers.dup
+            components.push(name)
+
+            str = modifiers.join(' ')
+        else
+            str = name
+        end
+
+        if self.pointer
+            str += '*'
+        end
+
+        return str
+    end
 
     def is_int?
-        return self == 'NSUInteger' || self == 'NSInteger' || self == 'unsigned int' || self == 'int'
+        return self.name == 'NSUInteger' || self.name == 'NSInteger' || self.name == 'unsigned int' || self.name == 'int'
     end
 
     def is_enum?()
-        return self.start_with?('MAI') && !self.end_with?('*')
+        return self.name.start_with?('MAI') && !self.pointer
     end
-end
 
-def convert_to_mai_type(class_name, mai_classes, mai_protocols, mai_enums)
-    mai_class = class_name
+    def convert_to(prefix)
+        @name = prefix + self.name[2..-1]
+    end
 
-    if class_name == 'NSRect'
-        return 'CGRect'
-    elsif class_name == 'NSPoint'
-        return 'CGPoint'
-    elsif class_name == 'NSSize'
-        return 'CGSize'
-    else
-        if class_name.start_with?("NS") or class_name.start_with?("UI")
-            replaced_name = "MAI" + class_name[2...-1]
+    def convert_to_mai_type(mai_classes, mai_protocols, mai_enums)
+        class_name = self.name
 
-            mai_classes.keys.each do | mai_class_name |
-                if replaced_name.split(' ').include? mai_class_name
-                    replaced_name = replaced_name + '*'
-                    mai_class = replaced_name
-                    break
+        if [ 'NSRect', 'NSPoint', 'NSSize' ].include?(class_name)
+            self.convert_to('CG')
+        elsif class_name.start_with?("NS") or class_name.start_with?("UI")
+            replaced_name = "MAI" + class_name[2..-1]
+
+            if mai_enums.include?(replaced_name)
+                self.convert_to('MAI')
+            else
+                mai_classes.keys.each do | mai_class_name |
+                    if replaced_name.split(' ').include? mai_class_name
+                        self.convert_to('MAI')
+                        break
+                    end
                 end
             end
         end
 
-        if class_name.start_with?("NS") or class_name.start_with?("UI")
-            replaced_name = "MAI" + class_name[2...class_name.length]
+        mai_protocols.each do | mai_protocol_name, mai_protocol |
+            ns_protocol_name = "NS" + mai_protocol_name[3..-1]
+            ui_protocol_name = "UI" + mai_protocol_name[3..-1]
 
-            if mai_enums.include?(replaced_name)
-                mai_class = replaced_name
+            name = self.name
+
+            name.gsub!(ns_protocol_name, mai_protocol_name)
+            name.gsub!(ui_protocol_name, mai_protocol_name)
+
+            print name
+            print "\n"
+
+            @name = name
+        end
+    end
+
+    def <=>(other)
+        if self.modifiers.length == 0 && other.modifiers.length == 0
+            if self.is_int? && other.is_enum?
+                return 0
+            elsif self.is_enum? && other.is_int?
+                return 0
             end
         end
 
-        mai_protocols.each do | mai_protocol_name, mai_protocol |
-            ns_protocol_name = "NS" + mai_protocol_name[3...mai_protocol_name.length]
-            ui_protocol_name = "UI" + mai_protocol_name[3...mai_protocol_name.length]
-
-            mai_class.gsub!(ns_protocol_name, mai_protocol_name)
-            mai_class.gsub!(ui_protocol_name, mai_protocol_name)
+        result = (self.modifiers.sort <=> other.modifiers.sort)
+        if result != 0
+            return result
         end
+
+        result = (self.name <=> other.name)
+        if result != 0
+            return result
+        end
+
+        result = (self.pointer <=> other.pointer)
+        if result == nil
+            if self.pointer
+                return 1
+            else
+                return -1
+            end
+        end
+
+        return 0
 
     end
 
-    return mai_class
-end
-
-def compare_types(type1, type2)
-    if type1.is_int? && type2.is_enum?
-        return 0
-    elsif type1.is_enum? && type2.is_int?
-        return 0
-    else
-        return type1 <=> type2
+    def ==(other)
+        return (self <=> other) == 0
     end
 end
 
@@ -264,7 +324,7 @@ class AppleMethod
 
             for submatch in match
                 method_components.push(submatch[0])
-                argument_types.push(submatch[1])
+                argument_types.push(AppleType.new(submatch[1]))
                 argument_names.push(submatch[2])
             end
 
@@ -274,7 +334,13 @@ class AppleMethod
                 name = first_arg
             end
 
-            return AppleMethod.new(prefix, name, return_type, argument_types, argument_names)
+            return AppleMethod.new(
+                prefix,
+                name,
+                AppleType.new(return_type),
+                argument_types,
+                argument_names
+            )
         end
 
         return nil
@@ -285,7 +351,7 @@ class AppleMethod
     end
 
     def is_convenience_constructor
-        return self.prefix == '+' && self.return_type == 'instancetype'
+        return self.prefix == '+' && self.return_type.name == 'instancetype'
     end
 
     def to_s
@@ -297,7 +363,7 @@ class AppleMethod
 
             for i in 0...components.length
                 component     = components[i]
-                argument_type = self.argument_types[i]
+                argument_type = self.argument_types[i].to_s
                 argument_name = self.argument_names[i]
 
                 parts.push(component + ':(' + argument_type + ')' + argument_name)
@@ -308,7 +374,7 @@ class AppleMethod
             str_value = self.name
         end
 
-        str_value = self.prefix + '(' + self.return_type + ')' + str_value
+        str_value = self.prefix + '(' + self.return_type.to_s + ')' + str_value
 
         return str_value
     end
@@ -335,17 +401,19 @@ class AppleMethod
     end
 
     def update_types(mai_classes, mai_protocols, mai_enums)
-        @return_type = convert_to_mai_type(@return_type, mai_classes, mai_protocols, mai_enums)
-        @argument_types = @argument_types.map { | argument_type | convert_to_mai_type(argument_type, mai_classes, mai_protocols, mai_enums) }
+        @return_type.convert_to_mai_type(mai_classes, mai_protocols, mai_enums)
+        @argument_types.each do | argument_type |
+            argument_type.convert_to_mai_type(mai_classes, mai_protocols, mai_enums)
+        end
     end
 
     def contains_protocol(protocol)
-        if self.return_type.include?('<' + protocol + '>')
+        if self.return_type.name.include?('<' + protocol + '>')
             return true
         end
 
         self.argument_types.each do | argument_type |
-            if argument_type.include?('<' + protocol + '>')
+            if argument_type.name.include?('<' + protocol + '>')
                 return true
             end
         end
@@ -365,7 +433,7 @@ class AppleMethod
             return result
         end
 
-        result = compare_types(self.return_type, other.return_type)
+        result = (self.return_type.name <=> other.return_type.name)
         if result != 0
             return result
         end
@@ -376,7 +444,7 @@ class AppleMethod
         end
 
         self.argument_types.zip(other.argument_types).each do | type1, type2 |
-            result = compare_types(type1, type2)
+            result = (type1 <=> type2)
             if result != 0
                 return result
             end
@@ -389,6 +457,7 @@ end
 class AppleProperty
     attr_reader :type
     attr_reader :name
+    attr_reader :nullable
     attr_reader :memory_semantics
     attr_reader :atomicity
     attr_reader :access
@@ -402,10 +471,12 @@ class AppleProperty
     NONATOMIC = 'nonatomic'
     READONLY  = 'readonly'
     READWRITE = 'readwrite'
+    NULLABLE  = 'nullable'
 
-    def initialize(type, name, memory_semantics, atomicity, access, setter, getter)
+    def initialize(type, name, nullable, memory_semantics, atomicity, access, setter, getter)
         @type             = type
         @name             = name
+        @nullable         = nullable
         @memory_semantics = memory_semantics
         @atomicity        = atomicity
         @access           = access
@@ -414,6 +485,7 @@ class AppleProperty
     end
 
     def self.parse(line)
+        nullable         = false
         memory_semantics = nil
         atomicity        = NONATOMIC
         access           = READWRITE
@@ -429,7 +501,9 @@ class AppleProperty
             getter     = nil
 
             for attribute in attributes.split(',')
-                if [ STRONG, WEAK, ASSIGN, RETAIN, COPY ].include?(attribute)
+                if attribute == NULLABLE
+                    nullable = true
+                elsif [ STRONG, WEAK, ASSIGN, RETAIN, COPY ].include?(attribute)
                     memory_semantics = attribute
                 elsif [ READONLY, READWRITE ].include?(attribute)
                     access = attribute
@@ -448,7 +522,16 @@ class AppleProperty
                 end
             end
 
-           return AppleProperty.new(type, name, memory_semantics, atomicity, access, setter, getter)
+           return AppleProperty.new(
+                AppleType.new(type),
+                name,
+                nullable,
+                memory_semantics,
+                atomicity,
+                access,
+                setter,
+                getter
+            )
 
         end
 
@@ -458,6 +541,10 @@ class AppleProperty
 
     def to_s
         str_value = '@property(' + self.atomicity + ', ' + self.access
+
+        if @nullable
+            str_value = str_value + ', nullable'
+        end
 
         if @memory_semantics != nil
             str_value = str_value + ', ' + self.memory_semantics
@@ -471,13 +558,13 @@ class AppleProperty
             str_value = str_value + ', getter=' + @getter
         end
 
-        str_value = str_value + ') ' + self.type + ' ' + self.name
+        str_value = str_value + ') ' + self.type.to_s + ' ' + self.name
 
         return str_value
     end
 
     def update_types(mai_classes, mai_protocols, mai_enums)
-        @type = convert_to_mai_type(@type, mai_classes, mai_protocols, mai_enums)
+        @type.convert_to_mai_type(mai_classes, mai_protocols, mai_enums)
     end
 
     def getter
@@ -497,7 +584,7 @@ class AppleProperty
     end
 
     def contains_protocol(protocol)
-        if self.type.include?('<' + protocol + '>')
+        if self.type.name.include?('<' + protocol + '>')
             return true
         end
 
@@ -506,7 +593,7 @@ class AppleProperty
 
     def <=>(other)
 
-        result = compare_types(self.type, other.type)
+        result = (self.type <=> other.type)
         if result != 0
             return result
         end
@@ -514,6 +601,15 @@ class AppleProperty
         result = (self.name <=> other.name)
         if result != 0
             return result
+        end
+
+        result = (self.nullable <=> other.nullable)
+        if result == nil
+            if self.nullable
+                return 1
+            else
+                return -1
+            end
         end
 
         result = (self.getter <=> other.getter)
@@ -596,7 +692,7 @@ class AppleEnum
     end
 
     def to_s
-        str_value  = 'typedef ' + self.macro + '(' + self.type + ', ' + self.name + ") {\n"
+        str_value  = 'typedef ' + self.macro + '(' + self.type.to_s + ', ' + self.name + ") {\n"
         str_value += self.members.map { | member |
             member['value'] ? "#{member['name']} = #{member['value']}" : member['name']
         }.join(",\n")
@@ -627,6 +723,8 @@ def parse_headers(header_path)
             if line.strip.start_with?('//')
                 next
             end
+
+            line = line.gsub('__kindof', '')
 
             match = /@interface\s+(\w+)\s*:\s*(\w+)\s*(\<(.+)\>)*/.match(line)
             if match != nil
@@ -671,13 +769,17 @@ def parse_headers(header_path)
             match = /(NS_ENUM|NS_OPTIONS)\s*\(\s*(\w+)\s*,\s*(\w+)\s*\)/.match(line)
 
             if match != nil
+                if line.start_with?('#define')
+                    next
+                end
+
                 macro = match[1]
                 type  = match[2]
                 name  = match[3]
 
-                current_enum = AppleEnum.new(macro, type, name)
+                current_enum = AppleEnum.new(macro, AppleType.new(type), name)
                 enums[current_enum.name] = current_enum;
-                next;
+                next
             end
 
             if current_enum != nil and line.strip[0] == '{'
@@ -926,6 +1028,9 @@ mai_foundation_protocols = create_mai_foundation_protocols(ios_foundation_protoc
 mai_classes = create_mai_interfaces(ios_classes, mac_classes, AppleClass)
 
 mai_protocols = create_mai_interfaces(ios_protocols, mac_protocols, AppleInterface)
+
+print mai_protocols
+print "\n"
 
 mai_enums = create_mai_enums(ios_enums, mac_enums)
 
