@@ -32,6 +32,8 @@ class AppleType
     attr_reader :name
     attr_reader :pointer
 
+    @@modifier_tokens = [ 'nullable', '__kindof', 'const' ]
+
     def initialize(str)
         str = str.strip
 
@@ -40,8 +42,29 @@ class AppleType
             str = str[0...-1].strip
         end
 
-        @modifiers = str.split(' ')
-        @name = @modifiers.pop
+        @modifiers = []
+
+        tokens = str.gsub(/\s+/m, ' ').strip.split(' ')
+
+        while !tokens.empty?
+            token = tokens.shift
+            if @@modifier_tokens.include?(token)
+                @modifiers.push(token)
+            else
+                if tokens.empty?
+                    @name = token
+                else
+                    @name = token + ' ' + tokens.join(' ')
+                end
+
+                break
+            end
+        end
+
+        if @name == nil
+            @name = 'BAD'
+        end
+
     end
 
     def to_s
@@ -104,8 +127,17 @@ class AppleType
             name.gsub!(ns_protocol_name, mai_protocol_name)
             name.gsub!(ui_protocol_name, mai_protocol_name)
 
-            print name
-            print "\n"
+            @name = name
+        end
+
+        mai_classes.each do | mai_class_name, mai_class |
+            ns_class_name = "NS" + mai_class_name[3..-1]
+            ui_class_name = "UI" + mai_class_name[3..-1]
+
+            name = self.name
+
+            name.gsub!(ns_class_name, mai_class_name)
+            name.gsub!(ui_class_name, mai_class_name)
 
             @name = name
         end
@@ -317,7 +349,7 @@ class AppleMethod
             first_arg   = match[3]
             name        = nil
 
-            match = line.scan(/(\w+)\s*:\s*\(([\w\s\*\(\^\)]+)\)\s*(\w+)\s*/)
+            match = line.scan(/(\w+)\s*:\s*\(([\w\s\*\,\(\^\)]+)\)\s*(\w+)\s*/)
             method_components = []
             argument_types = []
             argument_names = []
@@ -491,14 +523,20 @@ class AppleProperty
         access           = READWRITE
 
         line.gsub!(/\/\*.+\*\//, '')
-        match = /@property\s*\(([^)]*)\)*\s*(\w+(\s*\<.+\>\s*)*\s*\*{0,1})\s*(\w+)/.match(line)
+
+        match = /@property\s*\(([^)]*)\)*\s*([\w\s\<\>\*\,\^^\_]+)(\*\s*|\s+)(\b(?!NS_)\w+)/.match(line)
 
         if match != nil
             attributes = match[1].delete(' ')
-            type       = match[2].delete(' ')
+            type       = match[2].strip
+            pointer    = match[3].strip == '*'
             name       = match[4]
             setter     = nil
             getter     = nil
+
+            if pointer
+                type = type + '*'
+            end
 
             for attribute in attributes.split(',')
                 if attribute == NULLABLE
@@ -522,7 +560,7 @@ class AppleProperty
                 end
             end
 
-           return AppleProperty.new(
+            return AppleProperty.new(
                 AppleType.new(type),
                 name,
                 nullable,
@@ -724,7 +762,10 @@ def parse_headers(header_path)
                 next
             end
 
-            line = line.gsub('__kindof', '')
+            index = line.index('//')
+            if index != nil
+                line = line[0...index]
+            end
 
             match = /@interface\s+(\w+)\s*:\s*(\w+)\s*(\<(.+)\>)*/.match(line)
             if match != nil
@@ -1028,9 +1069,6 @@ mai_foundation_protocols = create_mai_foundation_protocols(ios_foundation_protoc
 mai_classes = create_mai_interfaces(ios_classes, mac_classes, AppleClass)
 
 mai_protocols = create_mai_interfaces(ios_protocols, mac_protocols, AppleInterface)
-
-print mai_protocols
-print "\n"
 
 mai_enums = create_mai_enums(ios_enums, mac_enums)
 
