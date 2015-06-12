@@ -42,6 +42,8 @@ class AppleType
             str = str[0...-1].strip
         end
 
+        str = str.gsub(/\s+\*/, '*')
+
         @modifiers = []
 
         tokens = str.gsub(/\s+/m, ' ').strip.split(' ')
@@ -528,7 +530,7 @@ class AppleProperty
 
         if match != nil
             attributes = match[1].delete(' ')
-            type       = match[2].strip
+            type       = match[2].gsub(/\s+\*/, '*').strip
             pointer    = match[3].strip == '*'
             name       = match[4]
             setter     = nil
