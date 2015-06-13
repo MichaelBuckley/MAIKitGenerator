@@ -16,13 +16,15 @@
 <% end %>
 <% end %>
 
+NS_ASSUME_NONNULL_BEGIN
+
 <% if mai_class.protocols_str(mai_foundation_protocols).empty? %>
 @interface <%= mai_class.name %> : <%= mai_class.superclass %>
 <% else %>
 @interface <%= mai_class.name %> : <%= mai_class.superclass %><<%= mai_class.protocols_str(mai_foundation_protocols) %>>
 <% end %>
 <% for method in mai_class.methods.values %>
-<%= method.to_s %>;
+<%= method.to_s %> <%if method.designated_initializer %>NS_DESIGNATED_INITIALIZER<% end %><%if method.unavailable %>NS_UNAVAILABLE<% end %>;
 <% end %>
 <% for property in mai_class.properties.values %>
 <%= property.to_s %>;
@@ -42,3 +44,5 @@
 #endif
 -(<%= mai_class.name %>*) mai;
 @end
+
+NS_ASSUME_NONNULL_END

@@ -8,13 +8,15 @@
 
 <% for protocol in protocols_to_import %>
 <% if protocol != mai_protocol.name %>
-#import "<%= protocol %>.h"
+@protocol <%= protocol %>;
 <% end %>
 <% end %>
 
 <% for cls in classes_to_import %>
 @class <%= cls %>;
 <% end %>
+
+NS_ASSUME_NONNULL_BEGIN
 
 <% if mai_protocol.protocols_str(mai_foundation_protocols).empty? %>
 @protocol <%= mai_protocol.name %><% else %>
@@ -30,3 +32,5 @@
 <% end %>
 
 @end
+
+NS_ASSUME_NONNULL_END

@@ -2,6 +2,7 @@
 #pragma clang diagnostic ignored "-Wobjc-protocol-property-synthesis"
 #pragma clang diagnostic ignored "-Wprotocol"
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
+#pragma clang diagnostic ignored "-Wobjc-designated-initializers"
 
 #import "<%= mai_class.name %>.h"
 
@@ -24,48 +25,6 @@
     return (<%= mai_class.name %>*) [<%= mai_class.mac_name %> alloc];
 #endif
 }
-
-- (instancetype)init
-{
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wincompatible-pointer-types"
-#pragma clang diagnostic ignored "-Wenum-conversion"
-#if TARGET_OS_IPHONE
-    return (id) [(<%= mai_class.ios_name %>*) self init];
-#else
-    return (id) [(<%= mai_class.mac_name %>*) self init];
-#endif
-#pragma clang diagnostic pop
-}
-
-<% for method in mai_class.methods.values %>
-<% if method.is_initializer and method.name != 'init' %>
-<%= method.to_s %>
-{
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wincompatible-pointer-types"
-#pragma clang diagnostic ignored "-Wenum-conversion"
-#if TARGET_OS_IPHONE
-    return (id) [(<%= mai_class.ios_name %>*) self<%= method.method_call %>];
-#else
-    return (id) [(<%= mai_class.mac_name  %>*) self<%= method.method_call %>];
-#endif
-#pragma clang diagnostic pop
-}<% elsif method.is_convenience_constructor %>
-<%= method.to_s %>
-{
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wincompatible-pointer-types"
-#pragma clang diagnostic ignored "-Wenum-conversion"
-#if TARGET_OS_IPHONE
-    return (id) [<%= mai_class.ios_name %><%= method.method_call %>];
-#else
-    return (id) [<%= mai_class.mac_name %><%= method.method_call %>];
-#endif
-#pragma clang diagnostic pop
-}
-<% end %>
-<% end %>
 
 #if TARGET_OS_IPHONE
 -(<%= mai_class.ios_name %>*) ios
