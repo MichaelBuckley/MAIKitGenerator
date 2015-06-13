@@ -25,6 +25,22 @@
     return (<%= mai_class.name %>*) [<%= mai_class.mac_name %> alloc];
 #endif
 }
+<% for method in mai_class.methods.values %>
+<% if method.is_convenience_constructor(mai_class.name) %>
+<%= method.to_s %>
+{
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wincompatible-pointer-types"
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#if TARGET_OS_IPHONE
+    return (id) [<%= mai_class.ios_name %><%= method.method_call %>];
+#else
+    return (id) [<%= mai_class.mac_name %><%= method.method_call %>];
+#endif
+#pragma clang diagnostic pop
+}
+<% end %>
+<% end %>
 
 #if TARGET_OS_IPHONE
 -(<%= mai_class.ios_name %>*) ios

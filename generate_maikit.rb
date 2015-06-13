@@ -405,8 +405,9 @@ class AppleMethod
         return self.prefix == '-' && self.name.start_with?('init')
     end
 
-    def is_convenience_constructor
-        return self.prefix == '+' && self.return_type.name == 'instancetype'
+    def is_convenience_constructor(cls)
+        return self.prefix == '+' && self.return_type.pointer &&
+            (self.return_type.name == 'instancetype' || self.return_type.name == cls)
     end
 
     def to_s
