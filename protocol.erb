@@ -23,12 +23,29 @@ NS_ASSUME_NONNULL_BEGIN
 @interface <%= mai_protocol.name %> <<%= mai_protocol.protocols_str(mai_foundation_protocols) %>>
 <% end %>
 
-<% for method in mai_protocol.methods.values %>
+<% optional_methods = mai_protocol.methods.values.select { | method | !method.ns_required } %>
+<% required_methods = mai_protocol.methods.values.select { | method | method.ns_required } %>
+<% for method in optional_methods %>
 <%= method.to_s %>;
 <% end %>
 
-<% for property in mai_protocol.properties.values %>
+<% optional_properties = mai_protocol.properties.values.select { | property | !property.ns_required } %>
+<% required_properties = mai_protocol.properties.values.select { | property | property.ns_required } %>
+<% for property in optional_properties %>
 <%= property.to_s %>;
+<% end %>
+
+<% if !required_methods.empty? || !required_properties.empty? %>
+@required
+
+<% for method in required_methods %>
+<%= method.to_s %>;
+<% end %>
+
+<% for property in required_properties %>
+<%= property.to_s %>;
+<% end %>
+
 <% end %>
 
 @end

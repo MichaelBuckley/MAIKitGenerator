@@ -3,67 +3,218 @@
 #pragma clang diagnostic ignored "-Wprotocol"
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
 #pragma clang diagnostic ignored "-Wobjc-designated-initializers"
+#pragma clang diagnostic ignored "-Wincompatible-pointer-types"
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wmismatched-parameter-types"
+#pragma clang diagnostic ignored "-Wmismatched-return-types"
+#pragma clang diagnostic ignored "-Wmismatched-method-attributes"
+#pragma clang diagnostic ignored "-Wpointer-sign"
 
 #import "<%= mai_class.name %>.h"
 
+__thread static BOOL maiCallingSuper = NO;
+
+#if TARGET_OS_IPHONE
+#define <%= mai_class.name %>Private <%= mai_class.ios_name %>
+#else
+#define <%= mai_class.name %>Private <%= mai_class.mac_name %>
+#endif
+
 @implementation <%= mai_class.name %>
 
-+(Class) class
+- (id) forwardingTargetForSelector:(SEL)aSelector
 {
-#if TARGET_OS_IPHONE
-    return [<%= mai_class.ios_name %> class];
-#else
-    return [<%= mai_class.mac_name %> class];
-#endif
+    maiCallingSuper = YES;
+    return [self nativeObject];
 }
 
-+ (instancetype)allocWithZone:(struct _NSZone *)zone
+- (void) setNativeObject:(<%= mai_class.name %>Private*)nativeObject
 {
-#if TARGET_OS_IPHONE
-    return (<%= mai_class.name %>*) [<%= mai_class.ios_name %> alloc];
-#else
-    return (<%= mai_class.name %>*) [<%= mai_class.mac_name %> alloc];
-#endif
+    _nativeObject = nativeObject;
+    if ([nativeObject respondsToSelector: @selector(setMaiObject:)])
+    {
+        [nativeObject performSelector: @selector(setMaiObject:) withObject: self];
+    }
 }
+
+- (instancetype) initWithNativeObject: (<%= mai_class.name %>Private*) nativeObject
+{
+    if (self = [super init])
+    {
+        [self setNativeObject: nativeObject];
+    }
+
+    return self;
+}
+
 <% for method in mai_class.methods.values %>
 <% if method.is_convenience_constructor(mai_class.name) %>
 <%= method.to_s %>
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wincompatible-pointer-types"
-#pragma clang diagnostic ignored "-Wenum-conversion"
-#if TARGET_OS_IPHONE
-    return (id) [<%= mai_class.ios_name %><%= method.method_call %>];
-#else
-    return (id) [<%= mai_class.mac_name %><%= method.method_call %>];
-#endif
-#pragma clang diagnostic pop
+    return (<%= mai_class.name %>*) [<%= mai_class.name %>Private <%= method.method_call %>];
+}
+<% end %>
+<% if method.is_initializer(mai_class.name) %>
+<%= method.to_s %>
+{
+    <%= mai_class.name %>Private* nativeObject = [[<%= mai_class.name %>Private alloc] <%= method.method_call %>];
+    return (<%= mai_class.name %>*) [self initWithNativeObject: nativeObject];
 }
 <% end %>
 <% end %>
 
-#if TARGET_OS_IPHONE
--(<%= mai_class.ios_name %>*) ios
+- (id) copyWithZone:(NSZone*)zone
 {
-    return (<%= mai_class.ios_name %>*) self;
+    <%= mai_class.name %>Private* nativeCopy = [[self nativeObject] copy];
+    return [[[self class] alloc] initWithNativeObject: nativeCopy];
 }
-#else
--(<%= mai_class.mac_name %>*) mac
-{
-    return (<%= mai_class.mac_name %>*) self;
-}
-#endif
+
+
+<% for property in mai_class.properties.values %>
+@dynamic <%= property.name %>;
+<% end %>
 
 @end
 
 #if TARGET_OS_IPHONE
-@implementation <%= mai_class.ios_name %> (MAIConversion)
-#else
-@implementation <%= mai_class.mac_name %> (MAIConversion)
-#endif
--(<%= mai_class_name %>*) mai
+@implementation <%= mai_class.name %>Container
+
+<% for method in mai_class.ios_methods.values %>
+<% if !method.is_convenience_constructor(mai_class.name) && !method.is_initializer(mai_class.name) && method.prefix != '+' %>
+<%= method.to_s %>
 {
-    return (<%= mai_class.name %>*) self;
+    if (maiCallingSuper || [self maiObject] == nil)
+    {
+        maiCallingSuper = NO;
+        return (<%= method.return_type.cast_string %>) [super <%= method.method_call %>];
+    }
+    else
+    {
+        return (<%= method.return_type.cast_string %>) [(<%= mai_class.ios_name %>*) [self maiObject] <%= method.method_call %>];
+    }
+}
+<% end %>
+<% end %>
+
+<% for property in mai_class.ios_properties.values %>
+<% if property.getter != nil && !mai_class.ios_methods.include?(property.getter) %>
+- (<%= property.type.cast_string %>) <%= property.getter %>
+{
+    if (maiCallingSuper || [self maiObject] == nil)
+    {
+        maiCallingSuper = NO;
+        return (<%= property.type.cast_string %>) [super <%= property.getter %>];
+    }
+    else
+    {
+        return (<%= property.type.cast_string %>) [(<%= mai_class.ios_name %>*) [self maiObject] <%= property.getter %>];
+    }
+}
+<% end %>
+<% if !property.readonly %>
+<% if property.setter != nil && !mai_class.ios_methods.include?(property.setter)%>
+- (void) <%= property.setter %> (<%= property.type.cast_string %>) newValue
+{
+    if (maiCallingSuper || [self maiObject] == nil)
+    {
+        maiCallingSuper = NO;
+        <% if property.type.pointer || property.type.name.match(/^id\s*\</) %>
+        [super <%= property.setter %> (id) newValue];
+        <% else %>
+        [super <%= property.setter %> newValue];
+        <% end %>
+    }
+    else
+    {
+        <% if property.type.pointer || property.type.name.match(/^id\s*\</) %>
+        [(<%= mai_class.ios_name %>*) [self maiObject] <%= property.setter %> (id) newValue];
+        <% else %>
+        [(<%= mai_class.ios_name %>*) [self maiObject] <%= property.setter %> newValue];
+        <% end %>
+    }
+}
+<% end %>
+<% end %>
+<% end %>
+
+@end
+
+#else
+
+@implementation <%= mai_class.name %>Container
+
+<% for method in mai_class.mac_methods.values %>
+<% if !method.is_convenience_constructor(mai_class.name) && !method.is_initializer(mai_class.name) && method.prefix != '+' %>
+<%= method.to_s %>
+{
+    if (maiCallingSuper || [self maiObject] == nil)
+    {
+        maiCallingSuper = NO;
+        return (<%= method.return_type.cast_string %>) [super <%= method.method_call %>];
+    }
+    else
+    {
+        return (<%= method.return_type.cast_string %>) [(<%= mai_class.mac_name %>*) [self maiObject] <%= method.method_call %>];
+    }
+}
+<% end %>
+<% end %>
+
+<% for property in mai_class.mac_properties.values %>
+<% if property.getter != nil && !mai_class.mac_methods.include?(property.getter) %>
+- (<%= property.type.cast_string %>) <%= property.getter %>
+{
+    if (maiCallingSuper || [self maiObject] == nil)
+    {
+        maiCallingSuper = NO;
+        return (<%= property.type.cast_string %>) [super <%= property.getter %>];
+    }
+    else
+    {
+        return (<%= property.type.cast_string %>) [(<%= mai_class.mac_name %>*) [self maiObject] <%= property.getter %>];
+    }
+}
+<% end %>
+<% if !property.readonly %>
+<% if property.setter != nil && !mai_class.mac_methods.include?(property.setter) %>
+- (void) <%= property.setter %> (<%= property.type.cast_string %>) newValue
+{
+    if (maiCallingSuper || [self maiObject] == nil)
+    {
+        maiCallingSuper = NO;
+        <% if property.type.pointer || property.type.name.match(/^id\s*\</) %>
+        [super <%= property.setter %> (id) newValue];
+        <% else %>
+        [super <%= property.setter %> newValue];
+        <% end %>
+    }
+    else
+    {
+        <% if property.type.pointer || property.type.name.match(/^id\s*\</) %>
+        [(<%= mai_class.mac_name %>*) [self maiObject] <%= property.setter %> (id) newValue];
+        <% else %>
+        [(<%= mai_class.mac_name %>*) [self maiObject] <%= property.setter %> newValue];
+        <% end %>
+    }
+}
+
+<% end %>
+<% end %>
+<% end %>
+
+@end
+
+#endif
+
+#if TARGET_OS_IPHONE
+@implementation <%= mai_class.ios_name %> (MAINativeObject)
+- (<%= mai_class.ios_name %>*) nativeObject
+#else
+@implementation <%= mai_class.mac_name %> (MAINativeObject)
+- (<%= mai_class.mac_name %>*) nativeObject
+#endif
+{
+    return self;
 }
 @end
 

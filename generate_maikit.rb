@@ -32,7 +32,7 @@ class AppleType
     attr_reader :name
     attr_reader :pointer
 
-    @@modifier_tokens = [ 'nullable', 'null_resettable', '__kindof', 'const' ]
+    @@modifier_tokens = [ 'nullable', 'null_resettable', '__kindof', 'const', 'oneway', 'volatile', 'IBOutlet' ]
 
     def initialize(str)
         str = str.strip
@@ -64,6 +64,10 @@ class AppleType
         end
     end
 
+    def is_block?
+        return self.name.include?("^")
+    end
+
     def to_s
         str = ''
 
@@ -74,6 +78,33 @@ class AppleType
             str = components.join(' ')
         else
             str = self.name
+        end
+
+        if self.pointer
+            str += '*'
+        end
+
+        return str
+    end
+
+    def cast_string
+        str = ''
+
+        name = self.name
+
+        if (name == 'IBAction' || name == 'IBOutlet')
+            name = 'void'
+        end
+
+        if self.modifiers.length > 0
+            components = self.modifiers.dup.select{ | modifier |
+                !modifier.include?('null') && !modifier.include?('oneway') && !modifier.include?('IBOutlet')
+            }
+            components.push(name)
+
+            str = components.join(' ')
+        else
+            str = name
         end
 
         if self.pointer
@@ -98,9 +129,7 @@ class AppleType
     def convert_to_mai_type(mai_classes, mai_protocols, mai_enums)
         class_name = self.name
 
-        if [ 'NSRect', 'NSPoint', 'NSSize' ].include?(class_name)
-            self.convert_to('CG')
-        elsif class_name.start_with?("NS") or class_name.start_with?("UI")
+        if class_name.start_with?("NS") or class_name.start_with?("UI")
             replaced_name = "MAI" + class_name[2..-1]
 
             if mai_enums.include?(replaced_name)
@@ -138,6 +167,10 @@ class AppleType
 
             @name = name
         end
+
+        @name = @name.gsub(/\bNSRect\b/, 'CGRect')
+        @name = @name.gsub(/\bNSPoint\b/, 'CGPoint')
+        @name = @name.gsub(/\bNSRect\b/, 'CGRect')
     end
 
     def <=>(other)
@@ -160,7 +193,7 @@ class AppleType
         end
 
         result = (self.pointer <=> other.pointer)
-        if result == nil
+        if result != 0
             if self.pointer
                 return 1
             else
@@ -185,12 +218,20 @@ class AppleInterface
 
     attr_accessor :ios_name
     attr_accessor :mac_name
+    attr_accessor :ios_methods
+    attr_accessor :mac_methods
+    attr_accessor :ios_properties
+    attr_accessor :mac_properties
 
     def initialize(name)
-        @name        = name
-        @methods     = {}
-        @properties  = {}
-        @protocols   = []
+        @name           = name
+        @methods        = {}
+        @properties     = {}
+        @protocols      = []
+        @ios_methods    = nil
+        @mac_methods    = nil
+        @ios_properties = nil
+        @mac_properties = nil
     end
 
     def update_types(mai_classes, mai_protocols, mai_enums)
@@ -328,7 +369,8 @@ class AppleMethod
     attr_reader   :argument_types
     attr_reader   :argument_names
     attr_accessor :designated_initializer
-    attr_accessor :unavailable
+    attr_accessor :ns_unavailable
+    attr_accessor :ns_required
 
     def initialize(
         prefix,
@@ -337,7 +379,8 @@ class AppleMethod
         argument_types,
         argument_names,
         designated_initializer,
-        unavailable
+        ns_unavailable,
+        ns_required
     )
         @prefix                 = prefix
         @name                   = name
@@ -345,10 +388,11 @@ class AppleMethod
         @argument_types         = argument_types
         @argument_names         = argument_names
         @designated_initializer = designated_initializer
-        @unavailable            = unavailable
+        @ns_unavailable         = ns_unavailable
+        @ns_required            = ns_required
     end
 
-    def self.parse(line)
+    def self.parse(line, ns_required)
         match = /([\-|\+])\s*\(([\w\s\*\(\)\^]+)\)\s*(\w+)/.match(line)
 
         if match != nil
@@ -358,7 +402,7 @@ class AppleMethod
             first_arg   = match[3]
             name        = nil
 
-            match = line.scan(/(\w+)\s*:\s*\(([\w\s\*\,\(\^\)\<\>]+)\)\s*(\b(?!NS_)\w+)\s*/)
+            match = line.scan(/(\w+)\s*:\s*\(([\w\s\*\,\(\^\)\<\>\[\]]+)\)\s*(\b(?!(NS|UI)_)\w+)\s*/)
             method_components = []
             argument_types = []
             argument_names = []
@@ -376,15 +420,13 @@ class AppleMethod
             end
 
             designated_initializer = false
-            match = /NS_DESIGNATED_INITIALIZER/.match(line)
-            if match != nil
+            if /NS_DESIGNATED_INITIALIZER/.match(line) != nil
                 designated_initializer = true
             end
 
-            unavailable = false
-            match = /NS_UNAVAILABLE/.match(line)
-            if match != nil
-                unavailable = true
+            ns_unavailable = false
+            if /NS_UNAVAILABLE/.match(line) != nil
+                ns_unavailable = true
             end
 
             return AppleMethod.new(
@@ -394,20 +436,24 @@ class AppleMethod
                 argument_types,
                 argument_names,
                 designated_initializer,
-                unavailable
+                ns_unavailable,
+                ns_required
             )
         end
 
         return nil
     end
 
-    def is_initializer
-        return self.prefix == '-' && self.name.start_with?('init')
+    def is_initializer(cls)
+        return self.prefix == '-' && self.name.start_with?('init') &&
+            ((self.return_type.pointer && self.return_type.name == cls) ||
+                (self.return_type.name == 'instancetype'))
     end
 
     def is_convenience_constructor(cls)
-        return self.prefix == '+' && self.return_type.pointer &&
-            (self.return_type.name == 'instancetype' || self.return_type.name == cls)
+        return self.prefix == '+' &&
+            ((self.return_type.pointer && self.return_type.name == cls) ||
+                (self.return_type.name == 'instancetype'))
     end
 
     def to_s
@@ -447,7 +493,11 @@ class AppleMethod
             component = components[i]
             if name.end_with?(':')
                 arg = self.argument_names[i]
-                method_call += " #{component}:#{arg}"
+                if self.argument_types[i].is_block?
+                    method_call += " #{component}:(id)#{arg}"
+                else
+                    method_call += " #{component}:#{arg}"
+                end
             else
                 method_call += " #{component}"
             end
@@ -511,51 +561,50 @@ class AppleMethod
 end
 
 class AppleProperty
-    attr_reader :type
-    attr_reader :name
-    attr_reader :nullability
-    attr_reader :memory_semantics
-    attr_reader :atomicity
-    attr_reader :access
+    attr_reader   :type
+    attr_reader   :name
+    attr_reader   :nullability
+    attr_accessor :readonly
+    attr_accessor :ns_required
 
-    STRONG          = 'strong'
-    WEAK            = 'weak'
-    ASSIGN          = 'assign'
-    RETAIN          = 'retain'
-    COPY            = 'copy'
-    ATOMIC          = 'atomic'
-    NONATOMIC       = 'nonatomic'
     READONLY        = 'readonly'
-    READWRITE       = 'readwrite'
     NULLABLE        = 'nullable'
     NULL_RESETTABLE = 'null_resettable'
 
-    def initialize(type, name, nullability, memory_semantics, atomicity, access, setter, getter)
+    def initialize(
+        type,
+        name,
+        nullability,
+        readonly,
+        setter,
+        getter,
+        ns_required
+    )
         @type             = type
         @name             = name
         @nullability      = nullability
-        @memory_semantics = memory_semantics
-        @atomicity        = atomicity
-        @access           = access
+        @readonly         = readonly
         @setter           = setter
         @getter           = getter
+        @ns_required      = ns_required
     end
 
-    def self.parse(line)
+    def self.parse(line, ns_required)
         nullability      = nil
-        memory_semantics = nil
-        atomicity        = NONATOMIC
-        access           = READWRITE
+        readonly         = false
 
         line.gsub!(/\/\*.+\*\//, '')
 
-        match = /@property\s*\(([^)]*)\)*\s*([\w\s\<\>\*\,\^]+)(\*\s*|\s+)(\b(?!NS_)\w+)/.match(line)
+        match = /@property\s*(\(([^)]*)\)*)*\s*([\w\s\<\>\*\,\^]+)(\*\s*|\s+)(\b(?!(NS|UI)_)\w+)/.match(line)
 
         if match != nil
-            attributes = match[1].delete(' ')
-            type       = match[2].gsub(/\s+\*/, '*').strip
-            pointer    = match[3].strip == '*'
-            name       = match[4]
+            attributes = ''
+            if match[2] != nil
+                attributes = match[2].delete(' ')
+            end
+            type       = match[3].gsub(/\s+\*/, '*').strip
+            pointer    = match[4].strip == '*'
+            name       = match[5]
             setter     = nil
             getter     = nil
 
@@ -566,10 +615,8 @@ class AppleProperty
             for attribute in attributes.split(',')
                 if [ NULLABLE, NULL_RESETTABLE ].include?(attribute)
                     nullability = attribute
-                elsif [ STRONG, WEAK, ASSIGN, RETAIN, COPY ].include?(attribute)
-                    memory_semantics = attribute
-                elsif [ READONLY, READWRITE ].include?(attribute)
-                    access = attribute
+                elsif [ READONLY ].include?(attribute)
+                    readonly = true
                 else
                     submatch = /setter\s*=\s*([^\s]+)/.match(attribute)
 
@@ -589,11 +636,10 @@ class AppleProperty
                 AppleType.new(type),
                 name,
                 nullability,
-                memory_semantics,
-                atomicity,
-                access,
+                readonly,
                 setter,
-                getter
+                getter,
+                ns_required
             )
 
         end
@@ -603,22 +649,27 @@ class AppleProperty
     end
 
     def to_s
-        str_value = '@property(' + self.atomicity + ', ' + self.access
+        str_value = '@property('
 
-        if @nullability != nil
-            str_value = str_value + ', ' + self.nullability
+        values = []
+
+        if self.readonly
+            values.push(READONLY)
         end
 
-        if @memory_semantics != nil
-            str_value = str_value + ', ' + self.memory_semantics
+        if self.nullability != nil
+            values.push(self.nullability)
+        end
+        if self.setter != nil
+            values.push('setter=' + self.setter)
         end
 
-        if @setter != nil
-            str_value = str_value + ', setter=' + @setter
+        if self.getter != nil
+            values.push('getter=' + self.getter)
         end
 
-        if @getter != nil
-            str_value = str_value + ', getter=' + @getter
+        if not values.empty?
+            str_value = str_value + values.join(', ')
         end
 
         str_value = str_value + ') ' + self.type.to_s + ' ' + self.name
@@ -635,15 +686,11 @@ class AppleProperty
     end
 
     def setter
-        if self.readonly?
+        if self.readonly
             return nil
         end
 
         return @setter || self.name.to_setter
-    end
-
-    def readonly?
-        return self.access == READONLY
     end
 
     def contains_protocol(protocol)
@@ -671,17 +718,21 @@ class AppleProperty
             return result
         end
 
+        result = (self.readonly <=> other.readonly)
+        if result != 0
+            if self.readonly
+                return 1
+            else
+                return -1
+            end
+        end
+
         result = (self.getter <=> other.getter)
         if result != 0
             return result
         end
 
         result = (self.setter <=> other.setter)
-        if result != 0
-            return result
-        end
-
-        result = (self.access <=> other.access)
         if result != 0
             return result
         end
@@ -766,6 +817,15 @@ class AppleEnum
 
 end
 
+def remove_comments!(str, comment_start='/*', comment_end='*/')
+    while start_idx = str.index(comment_start)
+        end_idx = str.index(comment_end, start_idx + comment_start.length) + comment_end.length - 1
+        str[start_idx .. end_idx] = ""
+    end
+
+    return str
+end
+
 def parse_headers(header_path)
     classes   = {}
     protocols = {}
@@ -774,6 +834,8 @@ def parse_headers(header_path)
     Dir.foreach(header_path) do | filename |
         current_interface = nil
         current_enum = nil
+        ns_required = false
+        deprecated = false
 
         filename = header_path + '/' + filename
 
@@ -781,7 +843,12 @@ def parse_headers(header_path)
             next
         end
 
-        File.readlines(filename).each do | line |
+        contents = File.read(filename)
+        remove_comments!(contents)
+
+        partial_line = ''
+
+        contents.split("\n").each do | line |
 
             if line.strip.start_with?('//')
                 next
@@ -790,6 +857,18 @@ def parse_headers(header_path)
             index = line.index('//')
             if index != nil
                 line = line[0...index]
+            end
+
+            if /@required/.match(line) != nil
+                ns_required = true
+            end
+
+            if /@optional/.match(line) != nil
+                ns_required = false
+            end
+
+            if /NS_DEPRECATED/.match(line) != nil
+                deprecated = true
             end
 
             match = /@interface\s+(\w+)\s*:\s*(\w+)\s*(\<(.+)\>)*/.match(line)
@@ -805,11 +884,24 @@ def parse_headers(header_path)
                 if protocols_str != nil
                     protocols_str.split(',').each do | protocol_str |
                         protocol_str = protocol_str.strip
-                        current_interface.add_protocol(protocol_str)
+                        if !deprecated
+                            current_interface.add_protocol(protocol_str)
+                        end
+                        deprecated = false
                     end
                 end
 
                 classes[class_name] = current_interface
+            end
+
+            match = /@interface\s+(\w+)\s*\((\w+)\)/.match(line)
+            if match != nil
+                class_name = match[1]
+                category_name = match[2]
+
+                if !category_name.include?('Protected')
+                    current_interface = classes[class_name]
+                end
             end
 
             match = /@protocol\s*(\w+)\s*(\<(.+)\>)*/.match(line)
@@ -821,11 +913,15 @@ def parse_headers(header_path)
                 protocols_str = match[3]
 
                 current_interface = AppleInterface.new(protocol_name)
+                ns_required = false
 
                 if protocols_str != nil
                     protocols_str.split(',').each do | protocol_str |
                         protocol_str = protocol_str.strip
-                        current_interface.add_protocol(protocol_str)
+                        if !deprecated
+                            current_interface.add_protocol(protocol_str)
+                        end
+                        deprecated = false
                     end
                 end
 
@@ -862,18 +958,31 @@ def parse_headers(header_path)
             end
 
             if current_interface != nil
-                method = AppleMethod.parse(line)
+                method = AppleMethod.parse(line, ns_required)
                 if method != nil
-                    current_interface.add_method(method)
-                end
+                    if /;/.match(line) == nil
+                        partial_line = line
+                        next
+                    end
 
-                property = AppleProperty.parse(line)
-                if property != nil
+                    if !deprecated
+                        current_interface.add_method(method)
+                    end
+                end
+                deprecated = false
+
+                property = AppleProperty.parse(line, ns_required)
+                if property != nil && !deprecated
                     current_interface.add_property(property)
                 end
+                deprecated = false
             end
 
+            partial_line = ''
+
             if current_enum != nil
+                deprecated = false
+
                 if line != nil and line.strip.length == 0
                     next
                 end
@@ -915,7 +1024,7 @@ def merge_methods_into_properties(methods, input_properties, output_properties)
         match = false
 
         if methods.include?(getter)
-            if property.readonly?
+            if property.readonly
                 match = setter == nil
             elsif methods.include?(setter)
                 match = true
@@ -928,11 +1037,17 @@ def merge_methods_into_properties(methods, input_properties, output_properties)
 
         if match
             type = property.type
-            if methods[getter].return_type == type and (property.readonly? or methods[setter].argument_types[0] == type)
-                methods.delete(getter)
-                methods.delete(setter)
+            if methods[getter].return_type == type and (property.readonly or methods[setter].argument_types[0] == type)
                 output_properties[property_name] = property
             end
+        end
+
+        if methods.include?(getter)
+            methods.delete(getter)
+        end
+
+        if methods.include?(setter)
+            methods.delete(setter)
         end
 
     end
@@ -988,13 +1103,20 @@ def combine_interfaces(ios_interfaces, mac_interfaces, ios_interface, mac_interf
         merge_methods_into_properties(ios_methods, mac_properties, ios_properties)
     end
 
+    mai_interface.ios_methods = ios_methods
+    mai_interface.mac_methods = mac_methods
+
+    mai_interface.ios_properties = ios_properties
+    mai_interface.mac_properties = mac_properties
+
     ios_methods.each do | method_name, ios_method |
         if mac_methods.include?(method_name)
             mac_method = mac_methods[method_name]
 
             if (ios_method <=> mac_method) == 0
                 ios_method.designated_initializer ||= mac_method.designated_initializer
-                ios_method.unavailable ||= mac_method.unavailable
+                ios_method.ns_unavailable ||= mac_method.ns_unavailable
+                ios_method.ns_required ||= mac_method.ns_required
                 mai_interface.add_method(ios_method)
             end
         end
@@ -1005,6 +1127,8 @@ def combine_interfaces(ios_interfaces, mac_interfaces, ios_interface, mac_interf
             mac_property = mac_properties[property_name]
 
             if (ios_property <=> mac_property) == 0
+                ios_property.ns_required ||= mac_property.ns_required
+                ios_property.readonly ||= mac_property.readonly
                 mai_interface.add_property(ios_property)
             end
         end

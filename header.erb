@@ -23,26 +23,43 @@ NS_ASSUME_NONNULL_BEGIN
 <% else %>
 @interface <%= mai_class.name %> : <%= mai_class.superclass %><<%= mai_class.protocols_str(mai_foundation_protocols) %>>
 <% end %>
+#if TARGET_OS_IPHONE
+- (instancetype) initWithNativeObject: (<%= mai_class.ios_name %>*) nativeObject;
+#else
+- (instancetype) initWithNativeObject: (<%= mai_class.mac_name %>*) nativeObject;
+#endif
 <% for method in mai_class.methods.values %>
-<%= method.to_s %> <%if method.designated_initializer %>NS_DESIGNATED_INITIALIZER<% end %><%if method.unavailable %>NS_UNAVAILABLE<% end %>;
+<%= method.to_s %> <%if method.designated_initializer %>NS_DESIGNATED_INITIALIZER<% end %><%if method.ns_unavailable %>NS_UNAVAILABLE<% end %>;
 <% end %>
 <% for property in mai_class.properties.values %>
 <%= property.to_s %>;
 <% end %>
+
 #if TARGET_OS_IPHONE
--(<%= mai_class.ios_name %>*) ios;
+@property (nonatomic, readwrite, strong) <%= mai_class.ios_name %>* nativeObject;
 #else
--(<%= mai_class.mac_name %>*) mac;
+@property (nonatomic, readwrite, strong) <%= mai_class.mac_name %>* nativeObject;
 #endif
 
 @end
 
 #if TARGET_OS_IPHONE
-@interface <%= mai_class.ios_name %> (MAIConversion)
+@interface <%= mai_class.name %>Container : <%= mai_class.ios_name %>
 #else
-@interface <%= mai_class.mac_name %> (MAIConversion)
+@interface <%= mai_class.name %>Container : <%= mai_class.mac_name %>
 #endif
--(<%= mai_class.name %>*) mai;
+
+@property (nonatomic, readwrite, weak) <%= mai_class.name %>* maiObject;
+
+@end
+
+#if TARGET_OS_IPHONE
+@interface <%= mai_class.ios_name %> (MAINativeObject)
+- (<%= mai_class.ios_name %>*) nativeObject;
+#else
+@interface <%= mai_class.mac_name %> (MAINativeObject)
+- (<%= mai_class.mac_name %>*) nativeObject;
+#endif
 @end
 
 NS_ASSUME_NONNULL_END
