@@ -6,7 +6,7 @@
 
 #import "MAIEnums.h"
 
-<% for protocol in protocols_to_import %>
+<% for protocol in mai_protocols.keys %>
 <% if protocol != mai_protocol.name %>
 @protocol <%= protocol %>;
 <% end %>
@@ -14,17 +14,19 @@
 
 <% for cls in classes_to_import %>
 @class <%= cls %>;
+@protocol <%= cls %>Protocol;
 <% end %>
 
 NS_ASSUME_NONNULL_BEGIN
 
 <% if mai_protocol.protocols_str(mai_foundation_protocols).empty? %>
 @protocol <%= mai_protocol.name %><% else %>
-@interface <%= mai_protocol.name %> <<%= mai_protocol.protocols_str(mai_foundation_protocols) %>>
+@protocol <%= mai_protocol.name %> <<%= mai_protocol.protocols_str(mai_foundation_protocols) %>>
 <% end %>
 
 <% optional_methods = mai_protocol.methods.values.select { | method | !method.ns_required } %>
 <% required_methods = mai_protocol.methods.values.select { | method | method.ns_required } %>
+@optional
 <% for method in optional_methods %>
 <%= method.to_s %>;
 <% end %>

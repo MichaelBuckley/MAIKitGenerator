@@ -31,12 +31,14 @@ class AppleType
     attr_reader :modifiers
     attr_reader :name
     attr_reader :pointer
+    attr_reader :is_enum
 
     @@modifier_tokens = [ 'nullable', 'null_resettable', '__kindof', 'const', 'oneway', 'volatile', 'IBOutlet' ]
 
     def initialize(str)
         str = str.strip
 
+        @is_enum = false
         @pointer = str.end_with?('*')
         if @pointer
             str = str[0...-1].strip
@@ -66,6 +68,33 @@ class AppleType
 
     def is_block?
         return self.name.include?("^")
+    end
+
+    def method_str
+        str = ''
+
+        name = self.name
+        append_asterisk = true
+
+        if self.pointer && !self.is_enum && self.name.start_with?('MAI')
+            name = 'id<' + name + 'Protocol>'
+            append_asterisk = false
+        end
+
+        if self.modifiers.length > 0
+            components = self.modifiers.dup
+            components.push(name)
+
+            str = components.join(' ')
+        else
+            str = name
+        end
+
+        if self.pointer && append_asterisk
+            str += '*'
+        end
+
+        return str
     end
 
     def to_s
@@ -134,6 +163,7 @@ class AppleType
 
             if mai_enums.include?(replaced_name)
                 self.convert_to('MAI')
+                @is_enum = true
             else
                 mai_classes.keys.each do | mai_class_name |
                     if replaced_name.split(' ').include? mai_class_name
@@ -465,7 +495,7 @@ class AppleMethod
 
             for i in 0...components.length
                 component     = components[i]
-                argument_type = self.argument_types[i].to_s
+                argument_type = self.argument_types[i].method_str
                 argument_name = self.argument_names[i]
 
                 parts.push(component + ':(' + argument_type + ')' + argument_name)
@@ -476,7 +506,7 @@ class AppleMethod
             str_value = self.name
         end
 
-        str_value = self.prefix + '(' + self.return_type.to_s + ')' + str_value
+        str_value = self.prefix + '(' + self.return_type.method_str + ')' + str_value
 
         return str_value
     end
@@ -672,7 +702,7 @@ class AppleProperty
             str_value = str_value + values.join(', ')
         end
 
-        str_value = str_value + ') ' + self.type.to_s + ' ' + self.name
+        str_value = str_value + ') ' + self.type.method_str + ' ' + self.name
 
         return str_value
     end
