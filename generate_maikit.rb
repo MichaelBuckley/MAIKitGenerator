@@ -245,6 +245,8 @@ class AppleInterface
     attr_reader :methods
     attr_reader :properties
     attr_reader :protocols
+    attr_reader :ios_unavailable_methods
+    attr_reader :mac_unavailable_methods
 
     attr_accessor :ios_name
     attr_accessor :mac_name
@@ -254,14 +256,16 @@ class AppleInterface
     attr_accessor :mac_properties
 
     def initialize(name)
-        @name           = name
-        @methods        = {}
-        @properties     = {}
-        @protocols      = []
-        @ios_methods    = nil
-        @mac_methods    = nil
-        @ios_properties = nil
-        @mac_properties = nil
+        @name                    = name
+        @methods                 = {}
+        @properties              = {}
+        @protocols               = []
+        @ios_unavailable_methods = {}
+        @mac_unavailable_methods = {}
+        @ios_methods             = nil
+        @mac_methods             = nil
+        @ios_properties          = nil
+        @mac_properties          = nil
     end
 
     def update_types(mai_classes, mai_protocols, mai_enums)
@@ -288,6 +292,14 @@ class AppleInterface
 
     def add_method(method)
         self.methods[method.name] = method
+    end
+
+    def add_ios_unavailable_method(method)
+        self.ios_unavailable_methods[method.name] = method
+    end
+
+    def add_mac_unavailable_method(method)
+        self.mac_unavailable_methods[method.name] = method
     end
 
     def get_method(name)
@@ -474,6 +486,10 @@ class AppleMethod
         return nil
     end
 
+    def is_class_method
+        return self.prefix == '+'
+    end
+
     def is_initializer(cls)
         return self.prefix == '-' && self.name.start_with?('init') &&
             ((self.return_type.pointer && self.return_type.name == cls) ||
@@ -481,7 +497,7 @@ class AppleMethod
     end
 
     def is_convenience_constructor(cls)
-        return self.prefix == '+' &&
+        return self.is_class_method &&
             ((self.return_type.pointer && self.return_type.name == cls) ||
                 (self.return_type.name == 'instancetype'))
     end
@@ -1149,6 +1165,14 @@ def combine_interfaces(ios_interfaces, mac_interfaces, ios_interface, mac_interf
                 ios_method.ns_required ||= mac_method.ns_required
                 mai_interface.add_method(ios_method)
             end
+        else
+            mai_interface.add_ios_unavailable_method(ios_method)
+        end
+    end
+
+    mac_methods.each do | method_name, mac_method |
+        if !ios_methods.include?(method_name)
+            mai_interface.add_mac_unavailable_method(mac_method)
         end
     end
 
@@ -1237,6 +1261,14 @@ def write_enum_header(mai_enums, output_path)
     end
 end
 
+def write_declarations_header(mai_protocols, classes_to_import, output_path)
+    declarations_header_file = File.open(File.join(output_path, "MAIDeclarations.h"), "wb")
+
+    declarations_header_template_string = File.open('declarations_header.erb', 'rb').read()
+    declarations_header_template = ERB.new(declarations_header_template_string, nil, '<>')
+    declarations_header_file.write(declarations_header_template.result(binding))
+end
+
 ios_foundation_classes, ios_foundation_protocols, ios_foundation_enums = parse_headers(ios_foundation_header_path)
 
 ios_classes, ios_protocols, ios_enums = parse_headers(ios_uikit_header_path)
@@ -1285,6 +1317,7 @@ umbrella_header_template = ERB.new(umbrella_header_template_string, nil, '<>')
 umbrella_header_file.write(umbrella_header_template.result(binding))
 
 write_enum_header(mai_enums, output_path)
+write_declarations_header(mai_protocols, classes_to_import, output_path)
 
 header_template_string = File.open("header.erb", "rb").read()
 implementation_template_string = File.open("implementation.erb", "rb").read()

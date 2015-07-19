@@ -13,3 +13,7 @@ FOUNDATION_EXPORT const unsigned char MAIKitVersionString[];
 <% for cls in classes_to_import %>
 #import "<%= cls %>.h"
 <% end %>
+
+<% for protocol in mai_protocols.keys %>
+#import "<%= protocol %>.h"
+<% end %>

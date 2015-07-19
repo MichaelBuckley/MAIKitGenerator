@@ -1,5 +1,8 @@
 #import <TargetConditionals.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wobjc-property-no-attribute"
+
 #if TARGET_OS_IPHONE
 @import UIKit;
 #else
@@ -7,17 +10,7 @@
 #endif
 
 #import "MAIEnums.h"
-
-<% for protocol in mai_protocols.keys %>
-#import "<%= protocol %>.h"
-<% end %>
-
-<% for cls in classes_to_import %>
-<% if cls != mai_class.name %>
-@class <%= cls %>;
-@protocol <%= cls %>Protocol;
-<% end %>
-<% end %>
+#import "MAIDeclarations.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -29,6 +22,20 @@ NS_ASSUME_NONNULL_BEGIN
 <%= property.to_s %>;
 <% end %>
 
+#if TARGET_OS_IPHONE
+<% for method in mai_class.ios_unavailable_methods.values %>
+<% if method.is_class_method || method.is_initializer(mai_class.name) %>
+<%= method.to_s %> NS_UNAVAILABLE;
+<% end %>
+<% end %>
+#else
+<% for method in mai_class.mac_unavailable_methods.values %>
+<% if method.is_class_method || method.is_initializer(mai_class.name) %>
+<%= method.to_s %> NS_UNAVAILABLE;
+<% end %>
+<% end %>
+#endif
+
 @end
 
 #if TARGET_OS_IPHONE
@@ -39,3 +46,5 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
+
+#pragma clang diagnostic pop

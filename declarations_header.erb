@@ -1,0 +1,8 @@
+<% for protocol in mai_protocols.keys %>
+@protocol <%= protocol %>;
+<% end %>
+
+<% for cls in classes_to_import %>
+@class <%= cls %>;
+@protocol <%= cls %>Protocol;
+<% end %>
